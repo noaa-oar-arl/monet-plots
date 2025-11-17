@@ -1,0 +1,13 @@
+site_name: MONET Plots
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - API Reference:
+    - Spatial Plots: plots/spatial.md
+    - Time Series Plots: plots/timeseries.md
+    - Taylor Diagrams: plots/taylor.md
+    - KDE Plots: plots/kde.md
+    - Scatter Plots: plots/scatter.md
+    - Wind Plots: plots/wind.md
+    - Facet Grids: plots/facet_grid.md
