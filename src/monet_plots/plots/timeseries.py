@@ -25,8 +25,13 @@ class TimeSeriesPlot(BasePlot):
             ylabel (str, optional): The label for the y-axis. Defaults to None.
             label (str, optional): The label for the legend. Defaults to None.
         """
-        m = df.groupby(x).mean()
-        e = df.groupby(x).std()
+        # Only apply mean and std to numeric columns, keeping the grouping column
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        if x not in numeric_cols:
+            numeric_cols.append(x)
+        
+        m = df[numeric_cols].groupby(x).mean()
+        e = df[numeric_cols].groupby(x).std()
 
         upper = m[y] + e[y]
         lower = m[y] - e[y]

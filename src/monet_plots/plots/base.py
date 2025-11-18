@@ -8,10 +8,16 @@ class BasePlot:
     Handles figure and axis creation, applies the Wiley style,
     and provides a consistent method for saving figures.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, fig=None, ax=None, **kwargs):
         """Initializes the plot with a Wiley-compliant style."""
         plt.style.use(wiley_style)
-        self.fig, self.ax = plt.subplots(**kwargs)
+        if fig is not None and ax is not None:
+            # Use provided figure and axes
+            self.fig = fig
+            self.ax = ax
+        else:
+            # Create new figure and axes
+            self.fig, self.ax = plt.subplots(**kwargs)
 
     def save(self, filename, **kwargs):
         """Saves the plot to a file.

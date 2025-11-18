@@ -1,0 +1,501 @@
+# Basic Styling Guide
+
+Learn how to quickly customize the appearance of your plots using MONET Plots' built-in styling system and basic customization options.
+
+## Overview
+
+This guide covers fundamental styling techniques to make your plots look professional and consistent. We'll explore the default styles, quick customizations, and basic plot modifications.
+
+### Learning Objectives
+
+- Apply built-in style presets
+- Modify basic plot elements
+- Change colors and fonts
+- Adjust plot dimensions and layout
+- Create simple custom styles
+
+## Built-in Style Presets
+
+MONET Plots comes with professionally designed style presets that follow publication standards.
+
+### Wiley Style
+
+The default Wiley-compliant style provides a clean, professional appearance suitable for scientific publications.
+
+```python
+import matplotlib.pyplot as plt
+from monet_plots import style, TimeSeriesPlot
+
+# Apply Wiley style (default)
+plt.style.use(style.wiley_style)
+
+# Create a plot
+plot = TimeSeriesPlot(figsize=(12, 6))
+plot.plot(df, x='time', y='value', title="Wiley Style Plot")
+plot.save("wiley_style.png")
+```
+
+**Wiley Style Characteristics:**
+- **Font**: Times New Roman serif font
+- **Size**: 10pt for body text, 12pt for titles
+- **Grid**: Light gray dotted lines
+- **Lines**: 1.5pt width
+- **Colors**: Professional color palette
+- **Save Format**: TIFF by default, 300 DPI
+
+### APS Style
+
+For American Physical Society publications:
+
+```python
+# Apply APS-style configuration
+aps_style = {
+    'font.family': 'serif',
+    'font.serif': ['Times New Roman'],
+    'font.size': 10,
+    'axes.labelsize': 10,
+    'axes.titlesize': 12,
+    'legend.fontsize': 9,
+    'figure.figsize': (8, 6),
+    'figure.dpi': 300,
+    'savefig.dpi': 300,
+    'savefig.format': 'eps',  # EPS format for APS
+    'axes.grid': True,
+    'grid.linestyle': ':',
+    'grid.color': 'gray'
+}
+
+plt.style.use(aps_style)
+```
+
+### Nature Style
+
+For Nature journal publications:
+
+```python
+# Apply Nature-style configuration
+nature_style = {
+    'font.family': 'sans-serif',
+    'font.sans-serif': ['Helvetica'],
+    'font.size': 7,
+    'axes.labelsize': 7,
+    'axes.titlesize': 9,
+    'legend.fontsize': 7,
+    'figure.figsize': (3.5, 2),  # Single column
+    'figure.dpi': 300,
+    'savefig.dpi': 300,
+    'savefig.format': 'tiff',
+    'axes.grid': False,
+    'axes.spines': ['top', 'right']
+}
+
+plt.style.use(nature_style)
+```
+
+## Quick Customizations
+
+### Changing Colors
+
+```python
+import matplotlib.pyplot as plt
+from monet_plots import TimeSeriesPlot
+
+# Use a custom color palette
+custom_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+
+# Apply custom style
+plt.style.use({
+    'axes.prop_cycle': plt.cycler('color', custom_colors),
+    'axes.labelsize': 12,
+    'axes.titlesize': 14,
+    'legend.fontsize': 11
+})
+
+plot = TimeSeriesPlot()
+plot.plot(df, x='time', y='value', color=custom_colors[0])
+plot.save("custom_colors.png")
+```
+
+### Font Customization
+
+```python
+# Custom font configuration
+font_style = {
+    'font.family': 'serif',
+    'font.serif': ['Georgia', 'Times New Roman', 'serif'],
+    'font.size': 11,
+    'axes.labelsize': 11,
+    'axes.titlesize': 14,
+    'legend.fontsize': 10,
+    'xtick.labelsize': 9,
+    'ytick.labelsize': 9
+}
+
+plt.style.use(font_style)
+```
+
+### Size and Layout
+
+```python
+# Figure size and layout customization
+layout_style = {
+    'figure.figsize': (14, 10),  # Large figure
+    'figure.dpi': 150,           # Lower DPI for web
+    'figure.autolayout': True,   # Automatic layout
+    'axes.titlesize': 16,        # Larger titles
+    'axes.labelsize': 14,        # Larger labels
+    'savefig.dpi': 300,          # High quality saves
+    'savefig.bbox': 'tight'      # Tight bounding box
+}
+
+plt.style.use(layout_style)
+```
+
+## Basic Plot Customization
+
+### Title and Labels
+
+```python
+from monet_plots import SpatialPlot
+
+plot = SpatialPlot(figsize=(12, 8))
+
+# Plot data
+plot.plot(data, title="Custom Title with Subtitle")
+
+# Add custom labels
+plot.xlabel("Longitude (degrees)")
+plot.ylabel("Latitude (degrees)")
+
+# Add subtitle
+plot.ax.text(0.5, 0.95, "Regional Analysis", 
+            transform=plot.ax.transAxes, 
+            ha='center', fontsize=11, style='italic')
+
+plot.save("custom_labels.png")
+```
+
+### Grid and Ticks
+
+```python
+from monet_plots import TimeSeriesPlot
+
+plot = TimeSeriesPlot(figsize=(12, 6))
+
+# Plot data
+plot.plot(df, x='time', y='value')
+
+# Customize grid
+plot.ax.grid(True, linestyle='--', alpha=0.7, color='gray')
+
+# Customize ticks
+plot.ax.tick_params(axis='both', which='major', labelsize=10, length=6, width=1.5)
+plot.ax.tick_params(axis='both', which='minor', length=3, width=1)
+
+# Add minor grid
+plot.ax.grid(True, axis='both', which='minor', linestyle=':', alpha=0.3)
+
+plot.save("custom_grid.png")
+```
+
+### Legend Customization
+
+```python
+from monet_plots import TimeSeriesPlot
+
+plot = TimeSeriesPlot(figsize=(12, 6))
+
+# Plot with custom legend
+plot.plot(
+    df,
+    x='time',
+    y='value',
+    title="Custom Legend Example",
+    label="Main Dataset"
+)
+
+# Customize legend
+legend = plot.ax.legend(
+    loc='upper right',
+    frameon=True,
+    fancybox=True,
+    shadow=True,
+    framealpha=0.9,
+    fontsize=10,
+    markerscale=1.2,
+    edgecolor='black',
+    facecolor='white'
+)
+
+# Add legend title
+legend.set_title("Data Sources", prop={'size': 11, 'weight': 'bold'})
+
+plot.save("custom_legend.png")
+```
+
+## Color Schemes
+
+### Sequential Color Schemes
+
+```python
+from monet_plots import SpatialPlot
+
+# Use sequential colormap for continuous data
+plot = SpatialPlot(figsize=(12, 8))
+
+# Sequential data
+sequential_data = np.random.random((20, 30)) * 100
+
+plot.plot(
+    sequential_data,
+    cmap='viridis',  # Sequential colormap
+    title="Sequential Color Scheme"
+)
+
+plot.save("sequential_colors.png")
+```
+
+### Diverging Color Schemes
+
+```python
+from monet_plots import SpatialPlot
+
+# Use diverging colormap for data with center point
+plot = SpatialPlot(figsize=(12, 8))
+
+# Diverging data (positive and negative values)
+diverging_data = np.random.normal(0, 50, (20, 30))
+
+plot.plot(
+    diverging_data,
+    cmap='RdBu_r',  # Red-Blue diverging
+    title="Diverging Color Scheme"
+)
+
+plot.save("diverging_colors.png")
+```
+
+### Qualitative Color Schemes
+
+```python
+from monet_plots import ScatterPlot
+
+# Use qualitative colormap for categorical data
+plot = ScatterPlot(figsize=(12, 8))
+
+# Create categorical data
+categories = ['A', 'B', 'C', 'D', 'E']
+colors = plt.cm.Set3(np.linspace(0, 1, len(categories)))
+
+for i, (category, color) in enumerate(zip(categories, colors)):
+    subset = df[df['category'] == category]
+    plot.ax.scatter(subset['x'], subset['y'], 
+                   color=color, label=category, s=50, alpha=0.7)
+
+plot.ax.legend(title="Categories")
+plot.title("Qualitative Color Scheme")
+plot.save("qualitative_colors.png")
+```
+
+## Quick Style Templates
+
+### Presentation Style
+
+```python
+# Style for presentations
+presentation_style = {
+    'figure.figsize': (12, 8),
+    'figure.dpi': 100,
+    'axes.labelsize': 14,
+    'axes.titlesize': 18,
+    'legend.fontsize': 12,
+    'xtick.labelsize': 12,
+    'ytick.labelsize': 12,
+    'font.size': 14,
+    'axes.grid': False,
+    'savefig.dpi': 150,
+    'savefig.format': 'png',
+    'savefig.bbox': 'tight'
+}
+
+plt.style.use(presentation_style)
+```
+
+### Paper Publication Style
+
+```python
+# Style for academic papers
+paper_style = {
+    'font.family': 'serif',
+    'font.serif': ['Times New Roman'],
+    'font.size': 10,
+    'axes.labelsize': 10,
+    'axes.titlesize': 12,
+    'legend.fontsize': 9,
+    'xtick.labelsize': 9,
+    'ytick.labelsize': 9,
+    'figure.figsize': (8, 6),
+    'figure.dpi': 300,
+    'savefig.dpi': 300,
+    'savefig.format': 'tiff',
+    'savefig.bbox': 'tight',
+    'axes.grid': True,
+    'grid.linestyle': ':',
+    'grid.color': 'lightgray',
+    'axes.spines': ['bottom', 'left'],
+    'axes.spines.right': False,
+    'axes.spines.top': False
+}
+
+plt.style.use(paper_style)
+```
+
+### Web Publication Style
+
+```python
+# Style for web content
+web_style = {
+    'font.family': 'sans-serif',
+    'font.sans-serif': ['Arial', 'Helvetica'],
+    'font.size': 12,
+    'axes.labelsize': 12,
+    'axes.titlesize': 16,
+    'legend.fontsize': 11,
+    'xtick.labelsize': 11,
+    'ytick.labelsize': 11,
+    'figure.figsize': (10, 6),
+    'figure.dpi': 100,
+    'savefig.dpi': 150,
+    'savefig.format': 'png',
+    'savefig.bbox': 'tight',
+    'axes.grid': True,
+    'grid.linestyle': '-',
+    'grid.color': '#e0e0e0',
+    'axes.facecolor': '#f8f9fa',
+    'figure.facecolor': 'white'
+}
+
+plt.style.use(web_style)
+```
+
+## Common Styling Patterns
+
+### Pattern 1: Quick Style Application
+
+```python
+# Apply style before creating plot
+plt.style.use('seaborn-v0_8-whitegrid')
+
+plot = TimeSeriesPlot()
+plot.plot(df, x='time', y='value')
+plot.save("quick_style.png")
+```
+
+### Pattern 2: Style Context Manager
+
+```python
+# Apply style temporarily
+with plt.style.context('seaborn-v0_8-darkgrid'):
+    plot = TimeSeriesPlot()
+    plot.plot(df, x='time', y='value')
+    plot.save("temp_style.png")
+```
+
+### Pattern 3: Style Combination
+
+```python
+# Combine multiple styles
+base_style = plt.style.library['seaborn-v0_8-whitegrid']
+custom_colors = {'axes.prop_cycle': plt.cycler('color', ['#e74c3c', '#3498db'])}
+
+combined_style = {**base_style, **custom_colors}
+plt.style.use(combined_style)
+
+plot = TimeSeriesPlot()
+plot.plot(df, x='time', y='value')
+plot.save("combined_style.png")
+```
+
+## Practice Exercises
+
+### Exercise 1: Wiley Style Modification
+Create a modified Wiley style with larger fonts and a different color scheme.
+
+### Exercise 2: Custom Presentation Style
+Design a style optimized for academic presentations with readable fonts and high contrast.
+
+### Exercise 3: Journal-Specific Style
+Create a style for a specific journal of your choice based on their submission guidelines.
+
+### Exercise 4: Color Scheme Experimentation
+Test different colormaps (viridis, plasma, inferno, magma) on your data and compare.
+
+### Exercise 5: Layout Optimization
+Create a style that optimizes plot layout for multi-panel figures.
+
+## Troubleshooting
+
+### Issue 1: Style Not Applying
+
+```python
+# Reset matplotlib defaults before applying new style
+plt.rcParams.update(plt.rcParamsDefault)
+plt.style.use('your_style')
+```
+
+### Issue 2: Font Not Available
+
+```python
+# Check available fonts
+import matplotlib.font_manager as fm
+print([f.name for f in fm.fontManager.ttflist])
+
+# Use fallback fonts
+font_style = {
+    'font.family': 'serif',
+    'font.serif': ['Georgia', 'Times New Roman', 'serif']  # Fallback chain
+}
+```
+
+### Issue 3: Poor Text Readability
+
+```python
+# Improve text readability
+readable_style = {
+    'font.size': 12,
+    'axes.labelsize': 14,
+    'axes.titlesize': 16,
+    'legend.fontsize': 12,
+    'axes.titlesize': 16,
+    'axes.labelweight': 'bold'
+}
+```
+
+## Next Steps
+
+After mastering basic styling, explore:
+
+1. **[Custom Styles](../custom-styles)** - Create your own comprehensive style themes
+2. **[Advanced Customization](../advanced-customization)** - Fine-tune individual plot elements
+3. **[Color Management](../colors)** - Advanced color palette management
+4. **[Theming Guide](../theming)** - Create consistent branded styles
+
+## Quick Reference
+
+| Style Element | Key | Common Values |
+|---------------|-----|---------------|
+| Font Family | `font.family` | `serif`, `sans-serif`, `monospace` |
+| Font Size | `font.size` | 8-16pt for most uses |
+| Figure Size | `figure.figsize` | (8, 6), (12, 8), (10, 6) |
+| Save Format | `savefig.format` | `png`, `tiff`, `pdf`, `eps` |
+| DPI | `savefig.dpi` | 300 for print, 150 for web |
+| Grid Style | `grid.linestyle` | `:`, `--`, `-`, `None` |
+
+---
+
+**Navigation**:
+
+- [Configuration Index](../index) - All configuration guides
+- [Custom Styles](../custom-styles) - Advanced style creation
+- [Advanced Customization](../advanced-customization) - Full plot control
+- [Color Management](../colors) - Color schemes and palettes

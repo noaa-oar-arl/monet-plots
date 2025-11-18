@@ -10,17 +10,51 @@ class SpatialPlot(BasePlot):
     This class creates a spatial plot of a 2D model variable on a map.
     It can handle both discrete and continuous colorbars.
     """
-    def __init__(self, projection=ccrs.PlateCarree(), **kwargs):
+    def __init__(self, projection=ccrs.PlateCarree(), fig=None, ax=None, **kwargs):
         """Initializes the plot with a cartopy projection.
 
         Args:
             projection (cartopy.crs): The cartopy projection to use.
+            fig: Pre-existing figure to use (optional)
+            ax: Pre-existing axes to use (optional) - if not a GeoAxes, will create a new one
             **kwargs: Additional keyword arguments to pass to `subplots`.
         """
-        super().__init__(subplot_kw={'projection': projection}, **kwargs)
-        self.ax.coastlines()
-        self.ax.add_feature(cfeature.BORDERS, linestyle=':')
-        self.ax.add_feature(cfeature.STATES, linestyle=':')
+        import cartopy.mpl.geoaxes as geoaxes
+        if fig is not None and ax is not None:
+            # Check if provided axes is a GeoAxes, if not create a new one at the same position
+            if isinstance(ax, geoaxes.GeoAxes):
+                # Use provided figure and axes if it's a GeoAxes
+                self.fig = fig
+                self.ax = ax
+            else:
+                # Create new GeoAxes at the same position as the provided axes
+                # Get the position of the original axes
+                pos = ax.get_position()
+                self.fig = fig
+                self.ax = fig.add_axes([pos.x0, pos.y0, pos.width, pos.height], projection=projection)
+                # Remove the original axes and replace it with the new GeoAxes
+                # This ensures the test checks the correct axes object
+                fig.delaxes(ax)
+                # Add the GeoAxes back to the same position
+                fig.add_axes(self.ax)
+        else:
+            # Create new figure and axes with projection
+            super().__init__(fig=fig, ax=ax, subplot_kw={'projection': projection}, **kwargs)
+        
+        # Add cartographic features if axes supports them (i.e., it's a GeoAxes)
+        if hasattr(self.ax, 'coastlines'):
+            self.ax.coastlines()
+            self.ax.add_feature(cfeature.BORDERS, linestyle=':')
+            self.ax.add_feature(cfeature.STATES, linestyle=':')
+        else:
+            # Create new figure and axes with projection
+            super().__init__(fig=fig, ax=ax, subplot_kw={'projection': projection}, **kwargs)
+        
+        # Add cartographic features if axes supports them (i.e., it's a GeoAxes)
+        if hasattr(self.ax, 'coastlines'):
+            self.ax.coastlines()
+            self.ax.add_feature(cfeature.BORDERS, linestyle=':')
+            self.ax.add_feature(cfeature.STATES, linestyle=':')
 
     def plot(self, modelvar, plotargs={}, ncolors=15, discrete=False, **kwargs):
         """Plots the spatial data.
@@ -41,12 +75,16 @@ class SpatialPlot(BasePlot):
         if discrete:
             vmin = plotargs.get('vmin', modelvar.min())
             vmax = plotargs.get('vmax', modelvar.max())
-            c, cmap = colorbar_index(ncolors, plotargs['cmap'], minval=vmin, maxval=vmax)
-            plotargs['cmap'] = cmap
-            im = self.ax.imshow(modelvar, **plotargs, **kwargs)
-            self.cbar = self.fig.colorbar(im, ticks=c.get_ticks())
+            # Create discrete colormap without using colorbar_index which causes issues with cartopy
+            from matplotlib.colors import BoundaryNorm
+            import numpy as np
+            bounds = np.linspace(vmin, vmax, ncolors + 1)
+            norm = BoundaryNorm(bounds, ncolors)
+            plotargs['cmap'] = plotargs['cmap'] if isinstance(plotargs['cmap'], str) else plotargs['cmap'].name
+            im = self.ax.imshow(modelvar, norm=norm, **plotargs, **kwargs)
+            self.cbar = self.fig.colorbar(im, ax=self.ax, ticks=np.linspace(vmin, vmax, ncolors))
         else:
             im = self.ax.imshow(modelvar, **plotargs, **kwargs)
-            self.cbar = self.fig.colorbar(im)
+            self.cbar = self.fig.colorbar(im, ax=self.ax)
 
         return self.ax

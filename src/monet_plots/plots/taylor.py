@@ -42,7 +42,7 @@ class TaylorDiagramPlot(BasePlot):
         Args:
             **kwargs: Additional keyword arguments to pass to `add_contours`.
         """
-        self.dia.add_contours(**kwargs)
+        return self.dia.add_contours(**kwargs)
 
     def finish_plot(self):
         """Finishes the plot by adding a legend and tight layout."""

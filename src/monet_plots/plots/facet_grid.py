@@ -1,19 +1,62 @@
 # src/monet_plots/plots/facet_grid.py
-import xarray as xr
+from .base import BasePlot
+import seaborn as sns
+import matplotlib.pyplot as plt
+from ..style import wiley_style
 
-class FacetGridPlot:
+
+class FacetGridPlot(BasePlot):
     """Creates a facet grid plot.
 
-    This class creates a facet grid plot using xarray's FacetGrid.
+    This class creates a facet grid plot using seaborn's FacetGrid.
     """
-    def __init__(self, data, **kwargs):
-        """Initializes the facet grid.
+    def __init__(self, data, row=None, col=None, hue=None, col_wrap=None,
+                 height=3, aspect=1, **kwargs):
+       """Initializes the facet grid.
 
-        Args:
-            data (xarray.DataArray): The data to plot.
-            **kwargs: Additional keyword arguments to pass to `FacetGrid`.
-        """
-        self.grid = xr.plot.FacetGrid(data, **kwargs)
+       Args:
+           data (pandas.DataFrame): The data to plot.
+           row (str, optional): Variable to map to row facets. Defaults to None
+           col (str, optional): Variable to map to column facets. Defaults to None
+           hue (str, optional): Variable to map to color mapping. Defaults to None
+           col_wrap (int, optional): Number of columns before wrapping. Defaults to None
+           height (float, optional): Height of each facet in inches. Defaults to 3
+           aspect (float, optional): Aspect ratio of each facet. Defaults to 1
+           **kwargs: Additional keyword arguments to pass to `FacetGrid`.
+       """
+       # Apply Wiley style - this is the key functionality from BasePlot
+       plt.style.use(wiley_style)
+       
+       # Initialize BasePlot with general figure parameters
+       super().__init__(**kwargs)
+       
+       # Store the data and facet parameters
+       self.data = data
+       self.row = row
+       self.col = col
+       self.hue = hue
+       self.col_wrap = col_wrap
+       self.height = height
+       self.aspect = aspect
+       
+       # Create the FacetGrid (this creates its own figure)
+       self.grid = sns.FacetGrid(
+           data,
+           row=self.row,
+           col=self.col,
+           hue=self.hue,
+           col_wrap=self.col_wrap,
+           height=self.height,
+           aspect=self.aspect,
+           **kwargs
+       )
+       
+       # Update the figure reference to the one from the grid since seaborn creates its own
+       self.fig = self.grid.fig
+       self.ax = None  # FacetGrid handles multiple axes internally
+       
+       # For compatibility with tests, also store as 'g'
+       self.g = self.grid
 
     def map_dataframe(self, plot_func, *args, **kwargs):
         """Maps a plotting function to the facet grid.
@@ -41,9 +84,26 @@ class FacetGridPlot:
             filename (str): The name of the file to save the plot to.
             **kwargs: Additional keyword arguments to pass to `savefig`.
         """
-        self.grid.savefig(filename, **kwargs)
+        self.fig.savefig(filename, **kwargs)
+
+    def plot(self, plot_func=None, *args, **kwargs):
+       """Plots the data using the FacetGrid.
+       
+       Args:
+           plot_func (function, optional): The plotting function to use. If None, uses the default plotting behavior.
+           *args: Positional arguments to pass to the plotting function.
+           **kwargs: Keyword arguments to pass to the plotting function.
+       """
+       if plot_func is not None:
+           # Map the provided plotting function to the grid
+           self.grid.map(plot_func, *args, **kwargs)
+       else:
+           # Default behavior: map a simple plot function if no specific function is provided
+           # For xarray DataArrays, we can use the default plot method
+           # The default is to call the default plot method on the data
+           # This is typically used after FacetGrid is set up
+           pass  # The FacetGrid is already created, user would typically call map after this
 
     def close(self):
-        """Closes the plot."""
-        import matplotlib.pyplot as plt
-        plt.close(self.grid.fig)
+       """Closes the plot."""
+       plt.close(self.fig)

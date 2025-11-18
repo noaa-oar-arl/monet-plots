@@ -138,6 +138,11 @@ class TaylorDiagram:
 
         # Collect sample points for latter use (e.g. legend)
         self.samplePoints = [l]
+        
+    @property
+    def samples(self):
+        """Property to provide compatibility with tests expecting 'samples' attribute."""
+        return self.samplePoints
 
     @_sns_context
     def add_sample(self, stddev, corrcoef, *args, **kwargs):
