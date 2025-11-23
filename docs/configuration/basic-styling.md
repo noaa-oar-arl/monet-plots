@@ -297,6 +297,116 @@ plot.title("Qualitative Color Scheme")
 plot.save("qualitative_colors.png")
 ```
 
+## Colorblind-Friendly Practices
+
+Ensuring your plots are accessible to individuals with color vision deficiencies is crucial for effective communication. MONET Plots encourages the use of colorblind-friendly palettes and practices.
+
+### Recommended Colormaps
+
+Matplotlib offers several perceptually uniform colormaps that are suitable for colorblind individuals.
+
+**For Sequential Data (ordered data, e.g., temperature, elevation):**
+
+*   `viridis`
+*   `plasma`
+*   `inferno`
+*   `magma`
+*   `cividis`
+
+**Example (Sequential):**
+
+```python
+import matplotlib.pyplot as plt
+from monet_plots import SpatialPlot
+import numpy as np
+
+plot = SpatialPlot(figsize=(12, 8))
+data = np.random.random((20, 30)) * 100
+
+plot.plot(
+    data,
+    cmap='viridis',  # Colorblind-friendly sequential colormap
+    title="Sequential Data with Viridis Colormap"
+)
+plot.save("colorblind_sequential.png")
+```
+
+**For Diverging Data (data with a critical central value, e.g., anomalies, differences):**
+
+*   `BrBG` (Brown-BlueGreen)
+*   `PiYG` (Pink-YellowGreen)
+*   `PRGn` (Purple-Green)
+*   `PuOr` (Purple-Orange)
+*   `RdGy` (Red-Gray)
+*   `RdBu` (Red-Blue)
+
+*(Note: Adding `_r` to the end of a colormap name reverses it, e.g., `RdBu_r`)*
+
+**Example (Diverging):**
+
+```python
+import matplotlib.pyplot as plt
+from monet_plots import SpatialPlot
+import numpy as np
+
+plot = SpatialPlot(figsize=(12, 8))
+diverging_data = np.random.normal(0, 50, (20, 30))
+
+plot.plot(
+    diverging_data,
+    cmap='RdBu_r',  # Colorblind-friendly diverging colormap
+    title="Diverging Data with RdBu_r Colormap"
+)
+plot.save("colorblind_diverging.png")
+```
+
+**For Qualitative/Categorical Data (distinct categories, no inherent order):**
+
+When plotting categorical data, avoid using too many distinct colors that might be hard to differentiate. Consider using:
+
+*   **Colorblind-friendly palettes:** Matplotlib's `tab10`, `tab20`, `Paired` are often good starting points.
+*   **Varying line styles or markers:** In addition to color, use different line styles (e.g., solid, dashed, dotted) or marker shapes (e.g., circles, squares, triangles) to distinguish categories.
+*   **Direct labeling:** Label categories directly on the plot rather than relying solely on a legend.
+
+**Example (Qualitative):**
+
+```python
+import matplotlib.pyplot as plt
+from monet_plots import ScatterPlot
+import pandas as pd
+import numpy as np
+
+plot = ScatterPlot(figsize=(12, 8))
+
+# Create categorical data
+categories = ['Group A', 'Group B', 'Group C', 'Group D']
+data = {
+    'x': np.random.rand(100) * 10,
+    'y': np.random.rand(100) * 10,
+    'category': np.random.choice(categories, 100)
+}
+df = pd.DataFrame(data)
+
+# Use a colorblind-friendly qualitative palette (tab10)
+colors = plt.cm.get_cmap('tab10', len(categories))
+
+for i, category in enumerate(categories):
+    subset = df[df['category'] == category]
+    plot.ax.scatter(subset['x'], subset['y'], 
+                   color=colors(i), label=category, s=50, alpha=0.7)
+
+plot.ax.legend(title="Categories")
+plot.title("Qualitative Data with Colorblind-Friendly Palette")
+plot.save("colorblind_qualitative.png")
+```
+
+### General Best Practices
+
+*   **Avoid red-green combinations:** These are particularly problematic for the most common forms of colorblindness (deuteranomaly and protanomaly).
+*   **Use sufficient contrast:** Ensure there is enough contrast between colors and between colors and the background.
+*   **Provide redundant coding:** Whenever possible, use other visual cues in addition to color, such as different line styles, marker shapes, patterns, or direct labels.
+*   **Test your plots:** Use online simulators or tools (e.g., Color Oracle) to check how your plots appear to individuals with different types of colorblindness.
+
 ## Quick Style Templates
 
 ### Presentation Style
