@@ -1,53 +1,66 @@
 # src/monet_plots/plots/spatial_contour.py
-from .base import BasePlot
+import matplotlib.pyplot as plt
+from .spatial import SpatialPlot
 from ..colorbars import colorbar_index
+import numpy as np
+from typing import Any
 import cartopy.crs as ccrs
-import cartopy.feature as cfeature
 
-class SpatialContourPlot(BasePlot):
-    """Creates a spatial contour plot.
+class SpatialContourPlot(SpatialPlot):
+    """Create a contour plot on a map with an optional discrete colorbar.
 
-    This class creates a spatial contour plot on a map.
+    This plot is useful for visualizing spatial data with continuous values.
     """
-    def __init__(self, projection=ccrs.PlateCarree(), **kwargs):
-        """Initializes the plot with a cartopy projection.
+
+    def __init__(self, modelvar: Any, gridobj, date=None, discrete: bool = True, ncolors: int = None, dtype: str = "int", *args, **kwargs):
+        """
+        Initialize the plot with data and map projection.
 
         Args:
-            projection (cartopy.crs): The cartopy projection to use.
-            **kwargs: Additional keyword arguments to pass to `subplots`.
+            modelvar (np.ndarray, pd.DataFrame, pd.Series, xr.DataArray): 2D model variable array to contour.
+            gridobj (object): Object with LAT and LON variables.
+            date (datetime.datetime): Date/time for the plot title.
+            discrete (bool): If True, use a discrete colorbar.
+            ncolors (int, optional): Number of discrete colors.
+            dtype (str): Data type for colorbar tick labels.
+            **kwargs: Keyword arguments passed to SpatialPlot for projection and features.
         """
-        super().__init__(subplot_kw={'projection': projection}, **kwargs)
-        self.ax.coastlines()
-        self.ax.add_feature(cfeature.BORDERS, linestyle=':')
-        self.ax.add_feature(cfeature.STATES, linestyle=':')
+        super().__init__(*args, **kwargs)
+        self.modelvar = np.asarray(modelvar)
+        self.gridobj = gridobj
+        self.date = date
+        self.discrete = discrete
+        self.ncolors = ncolors
+        self.dtype = dtype
 
-    def plot(self, modelvar, gridobj, date, discrete=True, ncolors=None, dtype='int', **kwargs):
-        """Plots the spatial contour data.
+    def plot(self, **kwargs):
+        """Generate the spatial contour plot."""
+        # Draw map features and get remaining kwargs for contourf
+        plot_kwargs = self._draw_features(**kwargs)
 
-        Args:
-            modelvar (numpy.ndarray): The 2D model variable to plot.
-            gridobj (object): The grid object containing the latitude and longitude data.
-            date (datetime): The date to plot.
-            discrete (bool, optional): Whether to use a discrete colorbar. Defaults to True.
-            ncolors (int, optional): The number of colors to use for a discrete colorbar. Defaults to None.
-            dtype (str, optional): The data type for the colorbar ticks. Defaults to 'int'.
-            **kwargs: Additional keyword arguments to pass to `contourf`.
-        """
-        lat = gridobj.variables['LAT'][0, 0, :, :].squeeze()
-        lon = gridobj.variables['LON'][0, 0, :, :].squeeze()
+        lat = self.gridobj.variables["LAT"][0, 0, :, :].squeeze()
+        lon = self.gridobj.variables["LON"][0, 0, :, :].squeeze()
 
-        if 'transform' not in kwargs:
-            kwargs['transform'] = ccrs.PlateCarree()
+        # Data is in lat/lon, so specify transform
+        plot_kwargs.setdefault('transform', ccrs.PlateCarree())
 
-        self.ax.contourf(lon, lat, modelvar, **kwargs)
+        mesh = self.ax.contourf(lon, lat, self.modelvar, **plot_kwargs)
 
-        cmap = kwargs.get('cmap', 'viridis')
-        levels = kwargs.get('levels')
+        cmap = plot_kwargs.get("cmap")
+        levels = plot_kwargs.get("levels")
 
-        if discrete and levels:
-            c, cmap = colorbar_index(ncolors, cmap, minval=levels[0], maxval=levels[-1], dtype=dtype)
-            self.fig.colorbar(c, ticks=c.get_ticks())
+        if self.discrete:
+            ncolors = self.ncolors
+            if ncolors is None and levels is not None:
+                ncolors = len(levels) - 1
+            c, _ = colorbar_index(
+                ncolors, cmap, minval=levels[0], maxval=levels[-1], dtype=self.dtype, ax=self.ax
+            )
         else:
-            self.fig.colorbar()
+            c = self.fig.colorbar(mesh, ax=self.ax)
 
-        self.ax.set_title(date.strftime('%B %d %Y %H'))
+        if self.date:
+            titstring = self.date.strftime("%B %d %Y %H")
+            self.ax.set_title(titstring)
+        self.fig.tight_layout()
+        return c
