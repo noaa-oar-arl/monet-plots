@@ -68,7 +68,7 @@ def test_timeseries_plot_pandas():
 
     # Create and plot
     plot = TimeSeriesPlot(df, x="time", y="obs", title="Pandas TimeSeries Test")
-    ax = plot.plot()
+    plot.plot()
 
     # Save the plot
     plot.save("test_pandas_timeseries.png")
@@ -93,7 +93,7 @@ def test_timeseries_plot_xarray():
 
     # Create and plot
     plot = TimeSeriesPlot(da, x="time", y="obs", title="Xarray TimeSeries Test")
-    ax = plot.plot()
+    plot.plot()
 
     # Save the plot
     plot.save("test_xarray_timeseries.png")
@@ -121,7 +121,7 @@ def test_timeseries_plot_xarray_dataset():
 
     # Create and plot
     plot = TimeSeriesPlot(ds, x="time", y="obs", title="Xarray Dataset TimeSeries Test")
-    ax = plot.plot()
+    plot.plot()
 
     # Save the plot
     plot.save("test_xarray_dataset_timeseries.png")
