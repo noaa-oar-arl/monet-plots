@@ -1,4 +1,3 @@
-
 import monet_plots as mpl
 import monet_plots.plot_utils as pu
 import seaborn as sns
@@ -52,11 +51,11 @@ def categorical_plot(
     fig, ax
         Matplotlib figure and axes objects.
     """
-    if 'x' not in kwargs or 'y' not in kwargs:
+    if "x" not in kwargs or "y" not in kwargs:
         raise ValueError("x and y must be provided as keyword arguments")
 
     if isinstance(data, xr.DataArray) and data.name is None:
-        data.name = kwargs['y']
+        data.name = kwargs["y"]
 
     df = data.to_dataframe().reset_index()
 
@@ -97,11 +96,7 @@ def categorical_plot(
 
 def categorical_timeseries(data, **kwargs):
     """Make a timeseries of categorical plots.
-    
+
     (Placeholder for future implementation)
     """
     raise NotImplementedError("Categorical timeseries plots are not yet implemented.")
-
-    
-    
-    

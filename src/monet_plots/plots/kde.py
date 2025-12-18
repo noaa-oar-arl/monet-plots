@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from .base import BasePlot
 
+
 class KDEPlot(BasePlot):
     """Create a kernel density estimate plot.
 
@@ -36,4 +37,3 @@ class KDEPlot(BasePlot):
                 self.ax.set_title(self.title)
             sns.despine()
         return self.ax
-

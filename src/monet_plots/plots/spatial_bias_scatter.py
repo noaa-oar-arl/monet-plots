@@ -7,6 +7,7 @@ from ..colorbars import colorbar_index
 from ..plot_utils import to_dataframe
 from typing import Any
 
+
 class SpatialBiasScatterPlot(SpatialPlot):
     """Create a spatial scatter plot showing bias between model and observations.
 
@@ -14,7 +15,20 @@ class SpatialBiasScatterPlot(SpatialPlot):
     by the absolute magnitude of this difference, making larger biases more visible.
     """
 
-    def __init__(self, df: Any, col1: str, col2: str, projection=ccrs.PlateCarree(), vmin: float = None, vmax: float = None, ncolors: int = 15, fact: float = 1.5, cmap: str = "RdBu_r", *args, **kwargs):
+    def __init__(
+        self,
+        df: Any,
+        col1: str,
+        col2: str,
+        projection=ccrs.PlateCarree(),
+        vmin: float = None,
+        vmax: float = None,
+        ncolors: int = 15,
+        fact: float = 1.5,
+        cmap: str = "RdBu_r",
+        *args,
+        **kwargs,
+    ):
         """
         Initialize the plot with data and map projection.
 
@@ -69,7 +83,7 @@ class SpatialBiasScatterPlot(SpatialPlot):
             vmin=-1.0 * top,
             vmax=top,
             cmap=cmap,
-            transform=ccrs.PlateCarree(), # Tell cartopy the data is in lat/lon
+            transform=ccrs.PlateCarree(),  # Tell cartopy the data is in lat/lon
             edgecolors="k",
             linewidths=0.25,
             alpha=0.7,

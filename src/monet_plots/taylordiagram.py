@@ -138,7 +138,7 @@ class TaylorDiagram:
 
         # Collect sample points for latter use (e.g. legend)
         self.samplePoints = [l]
-        
+
     @property
     def samples(self):
         """Property to provide compatibility with tests expecting 'samples' attribute."""
@@ -238,9 +238,7 @@ if __name__ == "__main__":
 
     # Add samples to Taylor diagram
     for i, (stddev, corrcoef) in enumerate(samples):
-        dia.add_sample(
-            stddev, corrcoef, marker="s", ls="", c=colors_[i], label="Model %d" % (i + 1)
-        )
+        dia.add_sample(stddev, corrcoef, marker="s", ls="", c=colors_[i], label="Model %d" % (i + 1))
 
     # Add RMS contours, and label them
     contours = dia.add_contours(colors="0.5")

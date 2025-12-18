@@ -6,6 +6,7 @@ from ..verification_metrics import compute_brier_score_components
 from .base import BasePlot
 from ..plot_utils import validate_dataframe, to_dataframe
 
+
 class BrierScoreDecompositionPlot(BasePlot):
     """
     Brier Score Decomposition Plot.
@@ -26,16 +27,18 @@ class BrierScoreDecompositionPlot(BasePlot):
     def __init__(self, fig=None, ax=None, **kwargs):
         super().__init__(fig=fig, ax=ax, **kwargs)
 
-    def plot(self,
-             data: Any,
-             reliability_col: str = 'reliability',
-             resolution_col: str = 'resolution',
-             uncertainty_col: str = 'uncertainty',
-             forecasts_col: Optional[str] = None,
-             observations_col: Optional[str] = None,
-             n_bins: int = 10,
-             label_col: Optional[str] = None,
-             **kwargs):
+    def plot(
+        self,
+        data: Any,
+        reliability_col: str = "reliability",
+        resolution_col: str = "resolution",
+        uncertainty_col: str = "uncertainty",
+        forecasts_col: Optional[str] = None,
+        observations_col: Optional[str] = None,
+        n_bins: int = 10,
+        label_col: Optional[str] = None,
+        **kwargs,
+    ):
         """
         Main plotting method.
 
@@ -57,18 +60,16 @@ class BrierScoreDecompositionPlot(BasePlot):
                         np.asarray(group[forecasts_col]), np.asarray(group[observations_col]), n_bins
                     )
                     row = pd.Series(comps)
-                    row['model'] = str(name)
+                    row["model"] = str(name)
                     components_list.append(row)
             else:
-                comps = compute_brier_score_components(
-                    np.asarray(df[forecasts_col]), np.asarray(df[observations_col]), n_bins
-                )
+                comps = compute_brier_score_components(np.asarray(df[forecasts_col]), np.asarray(df[observations_col]), n_bins)
                 row = pd.Series(comps)
-                row['model'] = 'Model'
+                row["model"] = "Model"
                 components_list.append(row)
 
             df_plot = pd.DataFrame(components_list)
-            plot_label_col = 'model'
+            plot_label_col = "model"
         else:
             required_cols = [reliability_col, resolution_col, uncertainty_col]
             validate_dataframe(df, required_columns=required_cols)
@@ -77,7 +78,7 @@ class BrierScoreDecompositionPlot(BasePlot):
 
         # Prepare for plotting: make resolution negative for visualization
         df_plot = df_plot.copy()
-        df_plot['resolution_plot'] = -df_plot[resolution_col]
+        df_plot["resolution_plot"] = -df_plot[resolution_col]
 
         # Grouped bar plot
         if plot_label_col:
@@ -88,20 +89,21 @@ class BrierScoreDecompositionPlot(BasePlot):
         x = np.arange(len(labels))
         width = 0.25
 
-        self.ax.bar(x - width, df_plot[reliability_col], width, label='Reliability', color='red', alpha=0.8, **kwargs)
-        self.ax.bar(x, df_plot['resolution_plot'], width, label='Resolution (-)', color='green', alpha=0.8, **kwargs)
-        self.ax.bar(x + width, df_plot[uncertainty_col], width, label='Uncertainty', color='blue', alpha=0.8, **kwargs)
+        self.ax.bar(x - width, df_plot[reliability_col], width, label="Reliability", color="red", alpha=0.8, **kwargs)
+        self.ax.bar(x, df_plot["resolution_plot"], width, label="Resolution (-)", color="green", alpha=0.8, **kwargs)
+        self.ax.bar(x + width, df_plot[uncertainty_col], width, label="Uncertainty", color="blue", alpha=0.8, **kwargs)
 
         # Total Brier Score as line on top if available
-        if 'brier_score' in df_plot.columns:
-            self.ax.plot(x, df_plot['brier_score'], 'ko-', linewidth=2, markersize=6, label='Brier Score')
+        if "brier_score" in df_plot.columns:
+            self.ax.plot(x, df_plot["brier_score"], "ko-", linewidth=2, markersize=6, label="Brier Score")
 
         self.ax.set_xticks(x)
-        self.ax.set_xticklabels(labels, rotation=45, ha='right')
-        self.ax.legend(loc='best')
-        self.ax.set_ylabel('Brier Score Components')
-        self.ax.set_title('Brier Score Decomposition')
+        self.ax.set_xticklabels(labels, rotation=45, ha="right")
+        self.ax.legend(loc="best")
+        self.ax.set_ylabel("Brier Score Components")
+        self.ax.set_title("Brier Score Decomposition")
         self.ax.grid(True, alpha=0.3)
+
 
 # TDD Anchors:
 # 1. test_component_sum: Verify Rel - Res + Unc matches Total BS (if provided).

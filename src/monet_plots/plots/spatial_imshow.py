@@ -1,4 +1,3 @@
-
 import matplotlib.pyplot as plt
 from .spatial import SpatialPlot
 from ..colorbars import colorbar_index
@@ -6,13 +5,16 @@ import numpy as np
 from typing import Any
 import cartopy.crs as ccrs
 
+
 class SpatialImshow(SpatialPlot):
     """Create a basic spatial plot using imshow.
 
     This plot is useful for visualizing 2D model data on a map.
     """
 
-    def __init__(self, modelvar: Any, gridobj, plotargs: dict = {}, ncolors: int = 15, discrete: bool = False, *args, **kwargs):
+    def __init__(
+        self, modelvar: Any, gridobj, plotargs: dict = {}, ncolors: int = 15, discrete: bool = False, *args, **kwargs
+    ):
         """
         Initialize the plot with data and map projection.
 

@@ -6,6 +6,7 @@ from .base import BasePlot
 from ..plot_utils import normalize_data
 from typing import Any, Union, List, Optional
 
+
 class TimeSeriesPlot(BasePlot):
     """Create a timeseries plot with shaded error bounds.
 
@@ -13,7 +14,19 @@ class TimeSeriesPlot(BasePlot):
     shading for ±1 standard deviation around the mean.
     """
 
-    def __init__(self, df: Any, x: str = "time", y: str = "obs", plotargs: dict = {}, fillargs: dict = {"alpha": 0.2}, title: str = "", ylabel: Optional[str] = None, label: Optional[str] = None, *args, **kwargs):
+    def __init__(
+        self,
+        df: Any,
+        x: str = "time",
+        y: str = "obs",
+        plotargs: dict = {},
+        fillargs: dict = {"alpha": 0.2},
+        title: str = "",
+        ylabel: Optional[str] = None,
+        label: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
         """
         Initialize the plot with data and plot settings.
 
@@ -113,17 +126,12 @@ class TimeSeriesPlot(BasePlot):
         lower = lower.where(lower >= 0, 0)  # Ensure non-negative values
 
         # Plot the error bounds using the time coordinate values
-        self.ax.fill_between(
-            time_coord.values,
-            lower.values,
-            upper.values,
-            **self.fillargs
-        )
+        self.ax.fill_between(time_coord.values, lower.values, upper.values, **self.fillargs)
 
         # Set labels and title
         unit = "None"  # xarray doesn't have a direct units attribute like pandas
-        if hasattr(data[self.y], 'attrs') and 'units' in data[self.y].attrs:
-            unit = data[self.y].attrs['units']
+        if hasattr(data[self.y], "attrs") and "units" in data[self.y].attrs:
+            unit = data[self.y].attrs["units"]
 
         if self.ylabel is None:
             self.ax.set_ylabel(f"{self.y} ({unit})")
@@ -206,11 +214,7 @@ class TimeSeriesStatsPlot(BasePlot):
             raise ValueError(f"Statistic '{stat}' not supported. Use one of {list(self.stats.keys())}")
 
         # Set default plot properties, allowing user to override
-        plot_kwargs = {
-            "grid": True,
-            "marker": "o",
-            "linestyle": "-"
-        }
+        plot_kwargs = {"grid": True, "marker": "o", "linestyle": "-"}
         # User-provided kwargs will override defaults but not the label
         plot_kwargs = {**plot_kwargs, **kwargs}
 

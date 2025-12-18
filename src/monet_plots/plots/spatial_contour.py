@@ -6,13 +6,24 @@ import numpy as np
 from typing import Any
 import cartopy.crs as ccrs
 
+
 class SpatialContourPlot(SpatialPlot):
     """Create a contour plot on a map with an optional discrete colorbar.
 
     This plot is useful for visualizing spatial data with continuous values.
     """
 
-    def __init__(self, modelvar: Any, gridobj, date=None, discrete: bool = True, ncolors: int = None, dtype: str = "int", *args, **kwargs):
+    def __init__(
+        self,
+        modelvar: Any,
+        gridobj,
+        date=None,
+        discrete: bool = True,
+        ncolors: int = None,
+        dtype: str = "int",
+        *args,
+        **kwargs,
+    ):
         """
         Initialize the plot with data and map projection.
 
@@ -42,7 +53,7 @@ class SpatialContourPlot(SpatialPlot):
         lon = self.gridobj.variables["LON"][0, 0, :, :].squeeze()
 
         # Data is in lat/lon, so specify transform
-        plot_kwargs.setdefault('transform', ccrs.PlateCarree())
+        plot_kwargs.setdefault("transform", ccrs.PlateCarree())
 
         mesh = self.ax.contourf(lon, lat, self.modelvar, **plot_kwargs)
 
@@ -53,9 +64,7 @@ class SpatialContourPlot(SpatialPlot):
             ncolors = self.ncolors
             if ncolors is None and levels is not None:
                 ncolors = len(levels) - 1
-            c, _ = colorbar_index(
-                ncolors, cmap, minval=levels[0], maxval=levels[-1], dtype=self.dtype, ax=self.ax
-            )
+            c, _ = colorbar_index(ncolors, cmap, minval=levels[0], maxval=levels[-1], dtype=self.dtype, ax=self.ax)
         else:
             c = self.fig.colorbar(mesh, ax=self.ax)
 

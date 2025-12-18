@@ -7,6 +7,7 @@ import numpy as np
 from typing import Any
 import cartopy.crs as ccrs
 
+
 class WindQuiverPlot(SpatialPlot):
     """Create a quiver plot of wind vectors on a map.
 
@@ -31,12 +32,12 @@ class WindQuiverPlot(SpatialPlot):
     def plot(self, **kwargs):
         """Generate the wind quiver plot."""
         quiver_kwargs = self._draw_features(**kwargs)
-        quiver_kwargs.setdefault('transform', ccrs.PlateCarree())
+        quiver_kwargs.setdefault("transform", ccrs.PlateCarree())
 
         lat = self.gridobj.variables["LAT"][0, 0, :, :].squeeze()
         lon = self.gridobj.variables["LON"][0, 0, :, :].squeeze()
         u, v = tools.wsdir2uv(self.ws, self.wdir)
         # Subsample the data for clarity
-        skip = quiver_kwargs.pop('skip', 15)
+        skip = quiver_kwargs.pop("skip", 15)
         quiv = self.ax.quiver(lon[::15, ::15], lat[::15, ::15], u[::15, ::15], v[::15, ::15], **quiver_kwargs)
         return quiv
