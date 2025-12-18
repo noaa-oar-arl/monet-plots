@@ -22,12 +22,9 @@ dependencies = [
     "pandas",
     "cartopy",
     "xarray",
-    "scipy", 
+    "scipy",
     "numpy",
     "statsmodels",
-    "cfgrib",
-    "eccodes",
-    "cdo",
 ]
 
 [project.urls]
