@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 import datetime
 from unittest.mock import MagicMock

@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from typing import Optional, Any
 from .base import BasePlot
 from ..plot_utils import validate_dataframe, to_dataframe

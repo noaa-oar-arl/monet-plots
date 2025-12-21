@@ -52,7 +52,7 @@ class ConditionalBiasPlot(BasePlot):
 
         self.ax.axhline(0, color="k", linestyle="--", linewidth=2, alpha=0.8, label="No Bias")
         self.ax.legend()
-        self.ax.set_xlabel(f"Observed Value")
+        self.ax.set_xlabel("Observed Value")
         self.ax.set_ylabel("Mean Bias (Forecast - Observation)")
         self.ax.grid(True, alpha=0.3)
 

@@ -1,5 +1,4 @@
 import monet_plots as mpl
-import monet_plots.plot_utils as pu
 import seaborn as sns
 import xarray as xr
 import matplotlib.pyplot as plt

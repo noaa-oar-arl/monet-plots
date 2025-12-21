@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 from monet_plots.plots import TrajectoryPlot
 

@@ -72,9 +72,6 @@ def test_VerticalSlice_plot(clear_figures, sample_data_contour):
     assert len(plot.ax.collections) > 0
 
 
-from matplotlib.quiver import Quiver
-
-
 def test_StickPlot_plot(clear_figures):
     """Test that StickPlot creates a plot."""
     u = np.random.rand(10) * 10

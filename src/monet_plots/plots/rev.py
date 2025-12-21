@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from typing import Optional, List, Any
 from ..verification_metrics import compute_rev
 from .base import BasePlot

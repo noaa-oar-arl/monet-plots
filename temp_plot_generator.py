@@ -1,10 +1,10 @@
 import os
 import re
 import subprocess
+
 import matplotlib
 
 matplotlib.use("Agg")  # Use non-interactive backend to prevent plots from displaying
-import matplotlib.pyplot as plt
 
 
 def generate_gallery_images():

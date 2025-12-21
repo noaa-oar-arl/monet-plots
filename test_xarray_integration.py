@@ -8,7 +8,6 @@ and xarray DataArrays/Datasets without forcing conversion to pandas.
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 # Check if xarray is available
 try:

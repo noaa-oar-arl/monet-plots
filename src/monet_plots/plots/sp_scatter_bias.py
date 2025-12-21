@@ -1,7 +1,7 @@
 from scipy.stats import scoreatpercentile as score
 from .base import BasePlot
 from ..plot_utils import _set_outline_patch_alpha, to_dataframe
-from ..mapgen import draw_map
+from .spatial import SpatialPlot
 from typing import Any
 
 
@@ -58,7 +58,7 @@ class SpScatterBiasPlot(BasePlot):
     def plot(self, **kwargs):
         """Generate the spatial scatter bias plot."""
         if self.ax is None:
-            self.ax = draw_map(**self.map_kwargs)
+            self.ax = SpatialPlot.draw_map(**self.map_kwargs)
 
         dfnew = self.df[["latitude", "longitude", self.col1, self.col2]].dropna().copy(deep=True)
         dfnew["sp_diff"] = dfnew[self.col2] - dfnew[self.col1]

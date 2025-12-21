@@ -109,14 +109,14 @@ class StickPlot(BasePlot):
         Parameters
         ----------
         **kwargs
-            Keyword arguments passed to `matplotlib.pyplot.barbs`.
+            Keyword arguments passed to `matplotlib.pyplot.quiver`.
         """
         if self.ax is None:
             if self.fig is None:
                 self.fig = plt.figure()
             self.ax = self.fig.add_subplot()
 
-        return self.ax.barbs(self.x, self.y, self.u, self.v, **kwargs)
+        return self.ax.quiver(self.x, self.y, self.u, self.v, **kwargs)
 
 
 class VerticalBoxPlot(BasePlot):
