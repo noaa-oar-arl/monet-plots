@@ -11,6 +11,8 @@ import pandas as pd
 import xarray as xr
 from numpy.typing import ArrayLike
 
+
+import numpy as np
 from .base import BasePlot
 
 # Type hint for array-like data
@@ -392,53 +394,40 @@ class SpatialTrack(SpatialPlot):
 
     def __init__(
         self,
-        data: xr.DataArray,
-        *,
+        longitude,
+        latitude=None,
+        data=None,
+        *args,
         lon_coord: str = "lon",
         lat_coord: str = "lat",
-        **kwargs: Any,
+        **kwargs,
     ):
-        """Initialize the spatial track plot.
-
-        This constructor validates the input DataArray to ensure it contains
-        the required coordinate variables for plotting. It also updates the
-        data's provenance by appending to its history attribute.
-
-        Parameters
-        ----------
-        data : xr.DataArray
-            The dataset for the plot.
-        lon_coord : str, optional
-            Name of the longitude coordinate.
-        lat_coord : str, optional
-            Name of the latitude coordinate.
-        **kwargs : Any
-            Additional keyword arguments for `SpatialPlot`.
-
-        Raises
-        ------
-        TypeError
-            If the input `data` is not an `xarray.DataArray`.
-        ValueError
-            If the specified longitude or latitude coordinates are not found.
         """
-        super().__init__(**kwargs)
-        if not isinstance(data, xr.DataArray):
-            raise TypeError("Input 'data' must be an xarray.DataArray.")
-        if lon_coord not in data.coords:
-            raise ValueError(
-                f"Longitude coordinate '{lon_coord}' not found in DataArray."
-            )
-        if lat_coord not in data.coords:
-            raise ValueError(
-                f"Latitude coordinate '{lat_coord}' not found in DataArray."
-            )
-
-        self.data = data
-        self.lon_coord = lon_coord
-        self.lat_coord = lat_coord
-
-        # Scientific Hygiene: Update history attribute for provenance
+        Accepts (lon, lat, data) arrays or a single xarray.DataArray for compatibility with tests and other spatial plots.
+        """
+        import xarray as xr
+        super().__init__(*args, **kwargs)
+        if latitude is None and data is None:
+            # xarray.DataArray usage
+            if not isinstance(longitude, xr.DataArray):
+                raise TypeError("Input 'data' must be an xarray.DataArray.")
+            if lon_coord not in longitude.coords:
+                raise ValueError(f"Longitude coordinate '{lon_coord}' not found in DataArray.")
+            if lat_coord not in longitude.coords:
+                raise ValueError(f"Latitude coordinate '{lat_coord}' not found in DataArray.")
+            self.data = longitude
+            self.lon_coord = lon_coord
+            self.lat_coord = lat_coord
+        else:
+            # Accepts (lon, lat, data)
+            lon = np.asarray(longitude)
+            lat = np.asarray(latitude)
+            values = np.asarray(data)
+            coords = {"time": np.arange(len(lon)), "lon": ("time", lon), "lat": ("time", lat)}
+            self.data = xr.DataArray(values, dims=["time"], coords=coords, name="track_data")
+            self.lon_coord = "lon"
+            self.lat_coord = "lat"
+        # Update history attribute for provenance
         history = self.data.attrs.get("history", "")
         self.data.attrs["history"] = f"Plotted with monet-plots.SpatialTrack; {history}"
 
