@@ -1,5 +1,5 @@
 site_name: MONET Plots
-repo_url: https://github.com/pypa/sampleproject
+repo_url: https://github.com/noaa-oar-arl/monet-plots
 theme:
   name: material
 markdown_extensions:
