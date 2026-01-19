@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any, Dict, Literal, Union
+from typing import Any, Literal, Union
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 from numpy.typing import ArrayLike
-
 
 from .base import BasePlot
 
@@ -29,43 +28,45 @@ class SpatialPlot(BasePlot):
     ----------
     resolution : str
         The resolution of the cartopy features (e.g., '50m').
-    feature_kwargs : dict[str, Any]
-        Keyword arguments for cartopy features passed during initialization.
     """
 
     def __init__(
         self,
         *,
         projection: ccrs.Projection = ccrs.PlateCarree(),
-        resolution: Literal["10m", "50m", "110m"] = "50m",
         fig: plt.Figure | None = None,
         ax: plt.Axes | None = None,
+        figsize: tuple[float, float] | None = None,
+        subplot_kw: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        """Initialize the spatial plot.
+        """Initialize the spatial plot and draw map features.
+
+        This constructor sets up the matplotlib Figure and cartopy GeoAxes,
+        and provides a single interface to draw common map features like
+        coastlines and states.
 
         Parameters
         ----------
         projection : ccrs.Projection, optional
             The cartopy projection for the map, by default ccrs.PlateCarree().
-        resolution : {"10m", "50m", "110m"}, optional
-            The default resolution for cartopy features, by default "50m".
         fig : plt.Figure | None, optional
             An existing matplotlib Figure object. If None, a new one is
             created, by default None.
         ax : plt.Axes | None, optional
             An existing matplotlib Axes object. If None, a new one is created,
             by default None.
+        figsize : tuple[float, float] | None, optional
+             Width, height in inches. If not provided, the matplotlib default
+             will be used.
+        subplot_kw : dict[str, Any] | None, optional
+            Keyword arguments passed to `fig.add_subplot`, by default None.
+            The 'projection' is added to these keywords automatically.
         **kwargs : Any
-            Additional keyword arguments for
-            `monet_plots.plots.base.BasePlot` (e.g., `figsize`) and
-            cartopy features (e.g., `coastlines=True`).
-
-        Notes
-        -----
-        For interactive use, it is recommended to create a `SpatialPlot`
-        instance using the `SpatialPlot.from_projection()` class method, which
-        is the designated factory.
+            Keyword arguments for map features, passed to `add_features`.
+            Common options include `coastlines`, `states`, `countries`,
+            `ocean`, `land`, `lakes`, `rivers`, `borders`, `gridlines`,
+            `extent`, and `resolution`.
 
         Attributes
         ----------
@@ -74,28 +75,134 @@ class SpatialPlot(BasePlot):
         ax : plt.Axes
             The matplotlib Axes (or GeoAxes) object.
         resolution : str
-            The resolution for cartopy features (e.g., '50m').
-        feature_kwargs : dict[str, Any]
-            Keyword arguments for features passed during initialization.
+            The default resolution for cartopy features.
         """
-        # The 'projection' kwarg is passed to subplot creation via 'subplot_kw'.
-        subplot_kw = kwargs.pop("subplot_kw", {})
-        subplot_kw["projection"] = projection
+        # Ensure 'projection' is correctly passed to subplot creation.
+        current_subplot_kw = subplot_kw.copy() if subplot_kw else {}
+        current_subplot_kw["projection"] = projection
 
-        # Extract kwargs for BasePlot.
-        # Assumes that any kwargs not used by plt.subplots are feature kwargs.
-        base_plot_kwargs: Dict[str, Any] = {"subplot_kw": subplot_kw}
-        if "figsize" in kwargs:
-            base_plot_kwargs["figsize"] = kwargs.pop("figsize")
+        self.resolution = kwargs.pop("resolution", "50m")
 
-        # The remaining kwargs are for features
-        self.feature_kwargs = kwargs
-        self.resolution = resolution
+        # Initialize the base plot, which creates the figure and axes.
+        super().__init__(fig=fig, ax=ax, figsize=figsize, subplot_kw=current_subplot_kw)
 
-        super().__init__(fig=fig, ax=ax, **base_plot_kwargs)
+        # Add features from kwargs
+        self.add_features(**kwargs)
 
-    def _get_feature_registry(self, resolution: str) -> dict[str, Any]:
-        """Return a registry of functions to add cartopy features.
+    @classmethod
+    def from_projection(
+        cls,
+        projection: ccrs.Projection = ccrs.PlateCarree(),
+        **kwargs: Any,
+    ) -> "SpatialPlot":
+        """Create a `SpatialPlot` instance from a map projection.
+
+        .. deprecated::
+           Use the constructor `SpatialPlot(...)` instead.
+
+        Parameters
+        ----------
+        projection : ccrs.Projection
+            The cartopy projection for the map. Default is ccrs.PlateCarree().
+        **kwargs : Any
+            Keyword arguments for map features and figure settings.
+
+        Returns
+        -------
+        SpatialPlot
+            An instance of the SpatialPlot class.
+        """
+        warnings.warn(
+            "SpatialPlot.from_projection() is deprecated. Use SpatialPlot() instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        return cls(projection=projection, **kwargs)
+
+    @classmethod
+    def draw_map(
+        cls,
+        *,
+        crs: ccrs.Projection | None = None,
+        natural_earth: bool = False,
+        coastlines: bool = True,
+        states: bool = False,
+        counties: bool = False,
+        countries: bool = True,
+        resolution: Literal["10m", "50m", "110m"] = "10m",
+        extent: list[float] | None = None,
+        figsize: tuple[float, float] = (10, 5),
+        linewidth: float = 0.25,
+        return_fig: bool = False,
+        **kwargs: Any,
+    ) -> plt.Axes | tuple[plt.Figure, plt.Axes]:
+        """Draw a map with Cartopy.
+
+        .. deprecated::
+           Use `SpatialPlot(...)` instead.
+
+        Parameters
+        ----------
+        crs : cartopy.crs.Projection, optional
+            The map projection. Default is PlateCarree.
+        natural_earth : bool
+            Whether to add Natural Earth features (ocean, land, etc.).
+        coastlines : bool
+            Whether to add coastlines.
+        states : bool
+            Whether to add US states/provinces.
+        counties : bool
+            Whether to add US counties.
+        countries : bool
+            Whether to add country borders.
+        resolution : {"10m", "50m", "110m"}
+            Resolution of Natural Earth features. Default is "10m".
+        extent : list[float], optional
+            Map extent as [lon_min, lon_max, lat_min, lat_max].
+        figsize : tuple
+            Figure size (width, height). Default is (10, 5).
+        linewidth : float
+            Line width for vector features. Default is 0.25.
+        return_fig : bool
+            If True, return the figure and axes objects.
+        **kwargs : Any
+            Additional arguments.
+
+        Returns
+        -------
+        plt.Axes or tuple[plt.Figure, plt.Axes]
+            The matplotlib Axes object, or a tuple of (Figure, Axes).
+        """
+        warnings.warn(
+            "`draw_map` is deprecated and will be removed in a future version. "
+            "Please use `SpatialPlot()` instead.",
+            FutureWarning,
+            stacklevel=2,
+        )
+
+        # Prepare feature kwargs for the constructor
+        feature_kwargs = {
+            "natural_earth": natural_earth,
+            "coastlines": {"linewidth": linewidth} if coastlines else False,
+            "states": {"linewidth": linewidth} if states else False,
+            "counties": {"linewidth": linewidth} if counties else False,
+            "countries": {"linewidth": linewidth} if countries else False,
+            "extent": extent,
+            "resolution": resolution,
+            "figsize": figsize,
+            **kwargs,
+        }
+
+        # Create the plot
+        plot = cls(projection=crs or ccrs.PlateCarree(), **feature_kwargs)
+
+        if return_fig:
+            return plot.fig, plot.ax
+        else:
+            return plot.ax
+
+    def _get_feature_registry(self, resolution: str) -> dict[str, dict[str, Any]]:
+        """Return a registry of cartopy features and their default styles.
 
         This approach centralizes feature management, making it easier to
         add new features and maintain existing ones.
@@ -107,35 +214,53 @@ class SpatialPlot(BasePlot):
 
         Returns
         -------
-        dict[str, Any]
-            A dictionary mapping feature names to the corresponding cartopy
-            feature objects or methods.
+        dict[str, dict[str, Any]]
+            A dictionary mapping feature names to a specification dictionary
+            containing the feature object and its default styling.
         """
-        # Lazy import to avoid circular dependencies if this were ever needed.
-        # For now, it's just a clean way to organize.
-        from cartopy.feature import BORDERS, LAKES, LAND, OCEAN, RIVERS, STATES
+        from cartopy.feature import (
+            BORDERS,
+            COASTLINE,
+            LAKES,
+            LAND,
+            OCEAN,
+            RIVERS,
+            STATES,
+        )
+
+        # Define default styles in one place for consistency
+        line_defaults = {"linewidth": 0.5, "edgecolor": "black", "facecolor": "none"}
 
         feature_mapping = {
-            # Special handling for ax.coastlines
-            "coastlines": self.ax.coastlines,
-            # Natural Earth Features
-            "countries": BORDERS.with_scale(resolution),
-            "states": STATES.with_scale(resolution),
-            "borders": BORDERS,
-            "ocean": OCEAN,
-            "land": LAND,
-            "rivers": RIVERS,
-            "lakes": LAKES,
-            # Special case for counties
-            "counties": cfeature.NaturalEarthFeature(
-                category="cultural",
-                name="admin_2_counties",
-                scale=resolution,
-                facecolor="none",
-                edgecolor="k",
-            ),
-            # Special handling for ax.gridlines
-            "gridlines": self.ax.gridlines,
+            "coastlines": {
+                "feature": COASTLINE.with_scale(resolution),
+                "defaults": line_defaults,
+            },
+            "countries": {
+                "feature": BORDERS.with_scale(resolution),
+                "defaults": line_defaults,
+            },
+            "states": {
+                "feature": STATES.with_scale(resolution),
+                "defaults": line_defaults,
+            },
+            "borders": {
+                "feature": BORDERS.with_scale(resolution),
+                "defaults": line_defaults,
+            },
+            "ocean": {"feature": OCEAN.with_scale(resolution), "defaults": {}},
+            "land": {"feature": LAND.with_scale(resolution), "defaults": {}},
+            "rivers": {"feature": RIVERS.with_scale(resolution), "defaults": {}},
+            "lakes": {"feature": LAKES.with_scale(resolution), "defaults": {}},
+            "counties": {
+                "feature": cfeature.NaturalEarthFeature(
+                    category="cultural",
+                    name="admin_2_counties",
+                    scale=resolution,
+                    facecolor="none",
+                ),
+                "defaults": line_defaults,
+            },
         }
         return feature_mapping
 
@@ -160,48 +285,28 @@ class SpatialPlot(BasePlot):
         if isinstance(style, dict):
             return style
         if style and defaults:
-            return defaults
+            # Return a copy to prevent modifying the defaults dictionary in place
+            return defaults.copy()
         return {}
 
     def _draw_single_feature(
-        self,
-        key: str,
-        feature_or_method: Any,
-        style_arg: bool | dict[str, Any],
-        resolution: str,
+        self, style_arg: bool | dict[str, Any], feature_spec: dict[str, Any]
     ) -> None:
         """Draw a single cartopy feature on the axes.
 
         Parameters
         ----------
-        key : str
-            The name of the feature (e.g., 'states').
-        feature_or_method : Any
-            The cartopy feature object or a method like `ax.coastlines`.
         style_arg : bool or dict[str, Any]
             The user-provided style for the feature.
-        resolution : str
-            The resolution to use for scalable features.
+        feature_spec : dict[str, Any]
+            A dictionary containing the feature object and default styles.
         """
         if not style_arg:  # Allows for `coastlines=False`
             return
 
-        # Determine default styles based on the feature
-        defaults = {}
-        if key in ["coastlines", "counties", "states", "countries", "borders"]:
-            defaults = {"linewidth": 0.5, "edgecolor": "black"}
-        elif key == "gridlines":
-            defaults = {"draw_labels": True, "linestyle": "--", "color": "gray"}
-
-        style_kwargs = self._get_style(style_arg, defaults)
-
-        # Draw the feature
-        if callable(feature_or_method):  # ax.coastlines or ax.gridlines
-            if key == "coastlines":
-                style_kwargs["resolution"] = resolution
-            feature_or_method(**style_kwargs)
-        else:  # cfeature.Feature object
-            self.ax.add_feature(feature_or_method, **style_kwargs)
+        style_kwargs = self._get_style(style_arg, feature_spec["defaults"])
+        feature = feature_spec["feature"]
+        self.ax.add_feature(feature, **style_kwargs)
 
     def add_features(self, **kwargs: Any) -> dict[str, Any]:
         """Add and style cartopy features on the map axes.
@@ -227,205 +332,60 @@ class SpatialPlot(BasePlot):
             A dictionary of the keyword arguments that were not used for
             adding features. This can be useful for passing remaining
             arguments to other functions.
-
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> import cartopy.crs as ccrs
-        >>> from monet_plots.plots.spatial import SpatialPlot
-        >>>
-        >>> # Create a map with default features
-        >>> plot = SpatialPlot.from_projection(
-        ...     projection=ccrs.LambertConformal(),
-        ...     figsize=(10, 5),
-        ...     states=True,
-        ...     coastlines=True,
-        ...     countries=True,
-        ...     extent=[-125, -65, 25, 50]
-        ... )
-        >>>
-        >>> # Style the states with a dictionary
-        >>> unused_kwargs = plot.add_features(
-        ...     states=dict(linewidth=1.5, edgecolor='blue')
-        ... )
-        >>> print(f"Unused kwargs: {unused_kwargs}")
-        >>> plt.show()
         """
-        combined_kwargs = {**self.feature_kwargs, **kwargs}
-        resolution = combined_kwargs.pop("resolution", self.resolution)
+        resolution = kwargs.pop("resolution", self.resolution)
         feature_registry = self._get_feature_registry(resolution)
 
         # If natural_earth is True, enable a standard set of features
-        if combined_kwargs.pop("natural_earth", False):
+        if kwargs.pop("natural_earth", False):
             for feature in ["ocean", "land", "lakes", "rivers"]:
-                combined_kwargs.setdefault(feature, True)
+                kwargs.setdefault(feature, True)
 
         # Main feature-drawing loop
-        for key, feature_or_method in feature_registry.items():
-            if key in combined_kwargs:
-                style_arg = combined_kwargs.pop(key)
-                self._draw_single_feature(key, feature_or_method, style_arg, resolution)
+        for key, feature_spec in feature_registry.items():
+            if key in kwargs:
+                style_arg = kwargs.pop(key)
+                self._draw_single_feature(style_arg, feature_spec)
+
+        # Handle gridlines separately, as they are not a 'feature' but an
+        # operation on the axes.
+        if "gridlines" in kwargs:
+            gridline_style = kwargs.pop("gridlines")
+            if gridline_style:  # Allows for `gridlines=False`
+                gridline_defaults = {
+                    "draw_labels": True,
+                    "linestyle": "--",
+                    "color": "gray",
+                }
+                gridline_kwargs = self._get_style(gridline_style, gridline_defaults)
+                self.ax.gridlines(**gridline_kwargs)
 
         # Handle extent after features are drawn
-        if "extent" in combined_kwargs:
-            extent = combined_kwargs.pop("extent")
+        if "extent" in kwargs:
+            extent = kwargs.pop("extent")
             if extent is not None:
                 self.ax.set_extent(extent)
 
-        return combined_kwargs
-
-    @classmethod
-    def from_projection(
-        cls,
-        projection: ccrs.Projection = ccrs.PlateCarree(),
-        **kwargs: Any,
-    ) -> "SpatialPlot":
-        """Create a `SpatialPlot` instance from a map projection.
-        This is the recommended factory method for creating a map. It
-        initializes the plot with a specified projection and then adds map
-        features based on keyword arguments.
-        Parameters
-        ----------
-        projection : ccrs.Projection
-            The cartopy projection for the map. Default is ccrs.PlateCarree().
-        **kwargs : Any
-            Keyword arguments for map features (e.g., `coastlines=True`,
-            `states=True`, `extent=[-125, -70, 25, 50]`).
-        Returns
-        -------
-        SpatialPlot
-            An instance of the SpatialPlot class with the map drawn.
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> from monet_plots.plots.spatial import SpatialPlot
-        >>> plot = SpatialPlot.from_projection(
-        ...     projection=ccrs.LambertConformal(),
-        ...     states=True,
-        ...     extent=[-125, -70, 25, 50],
-        ... )
-        >>> plt.show()
-        """
-        # Separate feature kwargs from figure kwargs
-        fig_kwargs = {
-            "figsize": kwargs.pop("figsize") for k in ["figsize"] if k in kwargs
-        }
-
-        # Create the plot instance
-        plot = cls(projection=projection, **fig_kwargs)
-
-        # Add features and return
-        plot.add_features(**kwargs)
-        return plot
-
-    @classmethod
-    def draw_map(
-        cls,
-        *,
-        crs: ccrs.Projection | None = None,
-        natural_earth: bool = False,
-        coastlines: bool = True,
-        states: bool = False,
-        counties: bool = False,
-        countries: bool = True,
-        resolution: Literal["10m", "50m", "110m"] = "10m",
-        extent: list[float] | None = None,
-        figsize: tuple[float, float] = (10, 5),
-        linewidth: float = 0.25,
-        return_fig: bool = False,
-        **kwargs: Any,
-    ) -> plt.Axes | tuple[plt.Figure, plt.Axes]:
-        """Draw a map with Cartopy.
-        .. deprecated:: TBD
-           Use :meth:`from_projection` instead. This method is maintained for
-           backward compatibility and will be removed in a future version.
-        Parameters
-        ----------
-        crs : cartopy.crs.Projection, optional
-            The map projection. Default is PlateCarree.
-        natural_earth : bool
-            Whether to add Natural Earth features (ocean, land, etc.).
-            Default is False.
-        coastlines : bool
-            Whether to add coastlines. Default is True.
-        states : bool
-            Whether to add US states/provinces. Default is False.
-        counties : bool
-            Whether to add US counties. Default is False.
-        countries : bool
-            Whether to add country borders. Default is True.
-        resolution : {"10m", "50m", "110m"}
-            Resolution of Natural Earth features. Default is "10m".
-        extent : list[float], optional
-            Map extent as [lon_min, lon_max, lat_min, lat_max].
-        figsize : tuple
-            Figure size (width, height). Default is (10, 5).
-        linewidth : float
-            Line width for vector features. Default is 0.25.
-        return_fig : bool
-            If True, return the figure and axes objects. Default is False.
-        **kwargs : Any
-            Additional arguments passed to `plt.subplots()`.
-        Returns
-        -------
-        plt.Axes or tuple[plt.Figure, plt.Axes]
-            The matplotlib Axes object, or a tuple of (Figure, Axes) if
-            `return_fig` is True.
-        Examples
-        --------
-        >>> import matplotlib.pyplot as plt
-        >>> from monet_plots.plots.spatial import SpatialPlot
-        >>> ax = SpatialPlot.draw_map(states=True, extent=[-125, -70, 25, 50])
-        >>> plt.show()
-        """
-        warnings.warn(
-            "`draw_map` is deprecated and will be removed in a future version. "
-            "Please use `SpatialPlot.from_projection()` instead.",
-            FutureWarning,
-            stacklevel=2,
-        )
-
-        # Prepare feature kwargs for the new factory
-        feature_kwargs = {
-            "natural_earth": natural_earth,
-            "coastlines": {"linewidth": linewidth} if coastlines else False,
-            "states": {"linewidth": linewidth} if states else False,
-            "counties": {"linewidth": linewidth} if counties else False,
-            "countries": {"linewidth": linewidth} if countries else False,
-            "extent": extent,
-            "resolution": resolution,
-            "figsize": figsize,
-            **kwargs,
-        }
-
-        # Create the plot using the new factory
-        plot = cls.from_projection(
-            projection=crs or ccrs.PlateCarree(), **feature_kwargs
-        )
-
-        if return_fig:
-            return plot.fig, plot.ax
-        else:
-            return plot.ax
+        return kwargs
 
 
 class SpatialTrack(SpatialPlot):
     """Plot a trajectory from an xarray.DataArray on a map.
+
     This class provides an xarray-native interface for visualizing paths,
     such as flight trajectories or pollutant tracks, where a variable
     (e.g., altitude, concentration) is plotted along the path.
-    Parameters
+
+    It inherits from :class:`SpatialPlot` to provide the underlying map canvas.
+
+    Attributes
     ----------
     data : xr.DataArray
-        An xarray DataArray containing the trajectory data. The DataArray
-        must have coordinates corresponding to longitude and latitude.
-    lon_coord : str, optional
-        The name of the longitude coordinate in the DataArray, by default "lon".
-    lat_coord : str, optional
-        The name of the latitude coordinate in the DataArray, by default "lat".
-    **kwargs : Any
-        Additional keyword arguments passed to `SpatialPlot.from_projection`
-        (e.g., `states=True`, `projection=ccrs.LambertConformal()`).
+        The trajectory data being plotted.
+    lon_coord : str
+        The name of the longitude coordinate in the DataArray.
+    lat_coord : str
+        The name of the latitude coordinate in the DataArray.
     """
 
     def __init__(
@@ -437,17 +397,24 @@ class SpatialTrack(SpatialPlot):
         **kwargs: Any,
     ):
         """Initialize the SpatialTrack plot.
+
+        This constructor validates the input data and sets up the map canvas
+        by initializing the parent `SpatialPlot` and adding map features.
+
         Parameters
         ----------
         data : xr.DataArray
             The input trajectory data. Must be an xarray DataArray with
             coordinates for longitude and latitude.
-        lon_coord : str
-            Name of the longitude coordinate in the DataArray. Default is 'lon'.
-        lat_coord : str
-            Name of the latitude coordinate in the DataArray. Default is 'lat'.
+        lon_coord : str, optional
+            Name of the longitude coordinate in the DataArray, by default 'lon'.
+        lat_coord : str, optional
+            Name of the latitude coordinate in the DataArray, by default 'lat'.
         **kwargs : Any
-            Additional keyword arguments passed to `SpatialPlot.from_projection`.
+            Keyword arguments passed to :class:`SpatialPlot`. These control
+            the map projection, figure size, and cartopy features. For example:
+            `projection=ccrs.LambertConformal()`, `figsize=(10, 8)`,
+            `states=True`, `extent=[-125, -70, 25, 50]`.
         """
         if not isinstance(data, xr.DataArray):
             raise TypeError("Input 'data' must be an xarray.DataArray.")
@@ -460,10 +427,9 @@ class SpatialTrack(SpatialPlot):
                 f"Latitude coordinate '{lat_coord}' not found in DataArray."
             )
 
-        # Create the map using the factory, passing feature kwargs
-        plot = SpatialPlot.from_projection(**kwargs)
-        self.fig = plot.fig
-        self.ax = plot.ax
+        # Initialize the parent SpatialPlot, which creates the map canvas
+        # and draws features from the keyword arguments.
+        super().__init__(**kwargs)
 
         # Set data and update history for provenance
         self.data = data
@@ -474,58 +440,33 @@ class SpatialTrack(SpatialPlot):
 
     def plot(self, **kwargs: Any) -> plt.Artist:
         """Plot the trajectory on the map.
+
         The track is rendered as a scatter plot, where each point is colored
         according to the `data` values.
+
         Parameters
         ----------
         **kwargs : Any
             Keyword arguments passed to `matplotlib.pyplot.scatter`.
             A `transform` keyword (e.g., `transform=ccrs.PlateCarree()`)
             is highly recommended for geospatial accuracy.
+            The `cmap` argument can be a string, a Colormap object, or a
+            (colormap, norm) tuple from the scaling tools in `colorbars.py`.
+
         Returns
         -------
         plt.Artist
             The scatter plot artist created by `ax.scatter`.
-        Examples
-        --------
-        >>> import numpy as np
-        >>> import xarray as xr
-        >>> import matplotlib.pyplot as plt
-        >>> from monet_plots.plots.spatial import SpatialTrack
-        >>> import cartopy.crs as ccrs
-        >>>
-        >>> # 1. Create a sample xarray.DataArray
-        >>> time = np.arange(20)
-        >>> lon = np.linspace(-120, -80, 20)
-        >>> lat = np.linspace(30, 45, 20)
-        >>> concentration = np.linspace(0, 100, 20)
-        >>> da = xr.DataArray(
-        ...     concentration,
-        ...     dims=['time'],
-        ...     coords={
-        ...         'time': time,
-        ...         'lon': ('time', lon),
-        ...         'lat': ('time', lat)
-        ...     },
-        ...     name='O3_concentration',
-        ...     attrs={'units': 'ppb'}
-        ... )
-        >>>
-        >>> # 2. Create the plot and render the data
-        >>> track_plot = SpatialTrack(
-        ...     da,
-        ...     projection=ccrs.LambertConformal(),
-        ...     states=True,
-        ...     extent=[-125, -70, 25, 50],
-        ... )
-        >>> sc = track_plot.plot(cmap='viridis', transform=ccrs.PlateCarree())
-        >>> plt.colorbar(sc, label="O3 Concentration (ppb)")
-        >>> plt.show()
         """
+        from ..plot_utils import get_plot_kwargs
+
         kwargs.setdefault("transform", ccrs.PlateCarree())
 
         longitude = self.data[self.lon_coord]
         latitude = self.data[self.lat_coord]
 
-        sc = self.ax.scatter(longitude, latitude, c=self.data, **kwargs)
+        # Use get_plot_kwargs to handle (cmap, norm) tuples
+        final_kwargs = get_plot_kwargs(c=self.data, **kwargs)
+
+        sc = self.ax.scatter(longitude, latitude, **final_kwargs)
         return sc
