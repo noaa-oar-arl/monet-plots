@@ -1,0 +1,5 @@
+matrix:
+  - name: markdown-spellcheck
+    sources:
+      - docs/**/*.md
+    spelling_language: en_US
