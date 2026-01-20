@@ -1,10 +1,14 @@
 # Plotting Examples Gallery
 
-Welcome to the MONET Plots gallery! This section provides a visual tour of the various plots you can create, from basic charts to complex meteorological visualizations. Click on any plot to see the full example and source code.
+Welcome to the MONET Plots gallery! This section provides a visual tour of the various plots you can create, from basic charts to complex meteorological visualizations.
 
-## Getting Started
+## Examples Gallery
 
-New to MONET Plots? Start with these foundational guides:
+We have moved our examples to an interactive gallery. Click the link below to explore:
+
+- **[Interactive Examples Gallery](../gallery/index.md)**
+
+## Featured Guides
 
 | Guide | Description |
 | :--- | :--- |
