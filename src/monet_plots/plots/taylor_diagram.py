@@ -58,10 +58,9 @@ class TaylorDiagramPlot(BasePlot):
             self.dia = td.TaylorDiagram(
                 obsstd, scale=self.scale, fig=self.fig, rect=111, label=self.label1
             )
-            # Add contours and grid for the new diagram
+            # Add contours for the new diagram
             contours = self.dia.add_contours(colors="0.5")
             plt.clabel(contours, inline=1, fontsize=10)
-            plt.grid(alpha=0.5)
 
         # Loop through each model column and add it to the diagram
         for model_col in self.col2:
