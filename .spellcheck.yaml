@@ -3,9 +3,3 @@ matrix:
     sources:
       - docs/**/*.md
     spelling_language: en_US
-    pipeline:
-      - pyspelling.filters.markdown:
-          ignore_code_blocks: true
-    dictionary:
-      wordlists:
-        - .spelling_wordlist.txt
