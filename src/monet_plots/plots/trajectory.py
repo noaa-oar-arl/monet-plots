@@ -7,6 +7,7 @@ import pandas as pd
 import pandas as pd
 import xarray as xr
 
+import matplotlib.pyplot as plt
 from .base import BasePlot
 from .spatial import SpatialTrack
 from .timeseries import TimeSeriesPlot

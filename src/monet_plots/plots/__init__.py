@@ -43,7 +43,7 @@ __all__ = [
     "FacetGridPlot",
     "SpatialBiasScatterPlot",
     "SpatialContourPlot",
-    "SpatialImshow",
+    "SpatialImshowPlot",
     "SpScatterBiasPlot",
     "ProfilePlot",
     "VerticalSlice",

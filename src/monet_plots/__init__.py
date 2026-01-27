@@ -44,7 +44,7 @@ __all__ = [
     "RelativeEconomicValuePlot",
     "ConditionalBiasPlot",
     "SpreadSkillPlot",
-    "SpatialImshow",
+    "SpatialImshowPlot",
     "SpScatterBiasPlot",
     "Windrose",
     "Meteogram",
