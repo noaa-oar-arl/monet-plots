@@ -6,12 +6,14 @@ import cartopy.crs as ccrs
 import numpy as np
 
 from ..colorbars import colorbar_index
-import numpy as np
-from typing import Any
-import cartopy.crs as ccrs
+from .spatial import SpatialPlot
+
+if TYPE_CHECKING:
+    import matplotlib.axes
+    import matplotlib.colorbar
 
 
-class SpatialImshow(SpatialPlot):
+class SpatialImshowPlot(SpatialPlot):
     """Create a basic spatial plot using imshow.
 
     This plot is useful for visualizing 2D model data on a map.
@@ -20,8 +22,8 @@ class SpatialImshow(SpatialPlot):
     def __init__(
         self,
         modelvar: Any,
-        gridobj,
-        plotargs: dict = {},
+        gridobj: Any | None = None,
+        plotargs: dict[str, Any] | None = None,
         ncolors: int = 15,
         discrete: bool = False,
         *args: Any,
@@ -66,8 +68,21 @@ class SpatialImshow(SpatialPlot):
         if self.plotargs:
             imshow_kwargs.update(self.plotargs)
 
-        lat = self.gridobj.variables["LAT"][0, 0, :, :].squeeze()
-        lon = self.gridobj.variables["LON"][0, 0, :, :].squeeze()
+        # Handle eager vs lazy data by delaying conversion until plotting
+        # we still eventually need a numpy array for imshow.
+        model_data = np.asarray(self.modelvar)
+
+        if self.gridobj is not None:
+            lat = self.gridobj.variables["LAT"][0, 0, :, :].squeeze()
+            lon = self.gridobj.variables["LON"][0, 0, :, :].squeeze()
+            extent = [lon.min(), lon.max(), lat.min(), lat.max()]
+        elif hasattr(self.modelvar, "lat") and hasattr(self.modelvar, "lon"):
+            lat = self.modelvar.lat
+            lon = self.modelvar.lon
+            extent = [lon.min(), lon.max(), lat.min(), lat.max()]
+        else:
+            # Fallback to extent from plotargs or default
+            extent = imshow_kwargs.get("extent", None)
 
         # imshow requires the extent [lon_min, lon_max, lat_min, lat_max]
 
