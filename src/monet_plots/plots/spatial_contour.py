@@ -90,12 +90,20 @@ class SpatialContourPlot(SpatialPlot):
         if self.discrete:
             ncolors = self.ncolors
             if ncolors is None and levels is not None:
-                ncolors = len(levels) - 1
+                # If levels is an int, convert to a sequence for len()
+                if isinstance(levels, int):
+                    ncolors = levels - 1
+                    levels_seq = np.linspace(np.nanmin(self.modelvar), np.nanmax(self.modelvar), levels)
+                else:
+                    ncolors = len(levels) - 1
+                    levels_seq = levels
+            else:
+                levels_seq = levels
             c, _ = colorbar_index(
                 ncolors,
                 cmap,
-                minval=levels[0],
-                maxval=levels[-1],
+                minval=levels_seq[0],
+                maxval=levels_seq[-1],
                 dtype=self.dtype,
                 ax=self.ax,
             )

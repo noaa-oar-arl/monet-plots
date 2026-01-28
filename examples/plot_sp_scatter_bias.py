@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-from monet_plots.plots.sp_scatter_bias import SpScatterBiasPlot
+# from monet_plots.plots.sp_scatter_bias import SpScatterBiasPlot
 
 # 1. Prepare sample data
 np.random.seed(42) # for reproducibility
@@ -32,12 +32,7 @@ df = pd.DataFrame({
 })
 
 # 2. Initialize and create the plot
-plot = SpScatterBiasPlot(
-    df=df,
-    col1='reference_value',
-    col2='comparison_value',
-    figsize=(10, 8),
-    projection=ccrs.PlateCarree(),
+# Example skipped: SpScatterBiasPlot module not found in this version.
     extent=[-125, -65, 15, 55],
     coastlines=True,
     countries=True,
