@@ -81,6 +81,9 @@ class ScatterPlot(BasePlot):
             Additional keyword arguments passed to BasePlot.
         """
         super().__init__(fig=fig, ax=ax, **kwargs)
+        if self.ax is None:
+            self.ax = self.fig.add_subplot(1, 1, 1)
+
         self.data = normalize_data(data if data is not None else df)
         self.x = x
         self.y = [y] if isinstance(y, str) else (y if y is not None else [])
@@ -192,9 +195,6 @@ class ScatterPlot(BasePlot):
 
                 if self.colorbar:
                     self.add_colorbar(mappable)
-                # Add regression line manually
-                m, b = np.polyfit(self.df[self.x], self.df[y_col], 1)
-                self.ax.plot(self.df[self.x], m * self.df[self.x] + b, color="red")
             else:
                 final_s_kwargs = s_kws.copy()
                 final_s_kwargs.setdefault("label", y_col)
