@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import matplotlib.pyplot as plt
 
 # Colorblind-friendly palette (Okabe-Ito)
@@ -87,7 +91,6 @@ _paper_style = {
     "axes.grid": True,
     "grid.linestyle": ":",
     "grid.color": "lightgray",
-    "axes.spines": ["bottom", "left"],
     "axes.spines.right": False,
     "axes.spines.top": False,
 }
@@ -163,8 +166,22 @@ _styles = {
     "default": {},  # Matplotlib default style
 }
 
+_current_style_name = "wiley"
 
-def set_style(context="default"):
+
+def get_available_styles() -> list[str]:
+    """
+    Returns a list of available style context names.
+
+    Returns
+    -------
+    list[str]
+        List of style names.
+    """
+    return list(_styles.keys())
+
+
+def set_style(context: str = "wiley"):
     """
     Set the plotting style based on a predefined context.
 
@@ -173,20 +190,58 @@ def set_style(context="default"):
     context : str, optional
         The name of the style context to apply.
         Available contexts: "wiley", "presentation", "paper", "web", "pivotal_weather", "default".
-        Defaults to "default" (Matplotlib's default style).
+        Defaults to "wiley".
 
     Raises
     ------
     ValueError
         If an unknown context name is provided.
     """
+    global _current_style_name
+
     if context not in _styles:
         raise ValueError(
             f"Unknown style context: '{context}'. "
             f"Available contexts are: {', '.join(_styles.keys())}"
         )
 
-    plt.style.use(_styles[context])
+    style_dict = _styles[context]
+
+    # Separate standard rcParams from custom ones
+    standard_rc = {k: v for k, v in style_dict.items() if k in plt.rcParams}
+
+    if context == "default":
+        plt.style.use("default")
+    else:
+        plt.style.use(standard_rc)
+
+    _current_style_name = context
+
+
+def get_style_setting(key: str, default: Any = None) -> Any:
+    """
+    Retrieves a style setting from the currently active style.
+    Looks in both standard rcParams and custom style settings.
+
+    Parameters
+    ----------
+    key : str
+        The name of the style setting.
+    default : Any, optional
+        The default value if the key is not found, by default None.
+
+    Returns
+    -------
+    Any
+        The style setting value.
+    """
+    # First check current style's dictionary (includes custom keys)
+    style_dict = _styles.get(_current_style_name, {})
+    if key in style_dict:
+        return style_dict[key]
+
+    # Fallback to general rcParams
+    return plt.rcParams.get(key, default)
 
 
 # Expose wiley_style for direct import if needed for backward compatibility
