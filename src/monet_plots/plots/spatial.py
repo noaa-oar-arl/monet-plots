@@ -102,6 +102,11 @@ class SpatialPlot(BasePlot):
         if self.ax is None:
             self.ax = self.fig.add_subplot(1, 1, 1, **current_subplot_kw)
 
+        # If BasePlot didn't create an axes (e.g. because fig was provided),
+        # create one now.
+        if self.ax is None:
+            self.ax = self.fig.add_subplot(1, 1, 1, **current_subplot_kw)
+
         # Add features from kwargs
         self.add_features(**kwargs)
 
