@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 
-from ..style import wiley_style
+from ..style import set_style
 
 if TYPE_CHECKING:
     import matplotlib.axes
@@ -22,7 +22,7 @@ class BasePlot:
     and provides a common interface for saving and closing plots.
     """
 
-    def __init__(self, fig=None, ax=None, **kwargs):
+    def __init__(self, fig=None, ax=None, style: str | None = "wiley", **kwargs):
         """Initializes the plot with a consistent style.
 
         If `fig` and `ax` are not provided, a new figure and axes
@@ -31,9 +31,13 @@ class BasePlot:
         Args:
             fig (matplotlib.figure.Figure, optional): Figure to plot on.
             ax (matplotlib.axes.Axes, optional): Axes to plot on.
+            style (str, optional): Style name to apply (e.g., 'wiley', 'paper').
+                If None, no style is applied. Defaults to 'wiley'.
             **kwargs: Additional keyword arguments for `plt.subplots`.
         """
-        plt.style.use(wiley_style)
+        if style:
+            set_style(style)
+
         if ax is not None:
             self.ax = ax
             if fig is not None:
@@ -58,6 +62,99 @@ class BasePlot:
     def close(self):
         """Closes the plot figure."""
         plt.close(self.fig)
+
+    def add_logo(
+        self,
+        logo: str | Any | None = None,
+        *,
+        ax: matplotlib.axes.Axes | None = None,
+        loc: str = "upper right",
+        scale: float = 0.1,
+        pad: float = 0.05,
+        **kwargs: Any,
+    ) -> Any:
+        """Adds a logo to the plot.
+
+        Parameters
+        ----------
+        logo : str or array-like, optional
+            Path to the logo image, a URL, or a numpy array.
+            If None, the default MONET logo is used.
+        ax : matplotlib.axes.Axes, optional
+            The axes to add the logo to. Defaults to `self.ax`.
+        loc : str, optional
+            Location of the logo ('upper right', 'upper left', 'lower right',
+            'lower left', 'center'). Defaults to "upper right".
+        scale : float, optional
+            Scaling factor for the logo, by default 0.1.
+        pad : float, optional
+            Padding from the edge of the axes, by default 0.05.
+        **kwargs : Any
+            Additional keyword arguments passed to `AnnotationBbox`.
+
+        Returns
+        -------
+        matplotlib.offsetbox.AnnotationBbox
+            The added logo object.
+        """
+        import matplotlib.image as mpimg
+        from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+        from ..plot_utils import get_logo_path
+
+        if ax is None:
+            ax = self.ax
+
+        if logo is None:
+            logo = get_logo_path()
+
+        if isinstance(logo, str):
+            if logo.startswith("http"):
+                import urllib.request
+                import io
+
+                with urllib.request.urlopen(logo) as url:
+                    f = io.BytesIO(url.read())
+                img = mpimg.imread(f)
+            else:
+                img = mpimg.imread(logo)
+        else:
+            img = logo
+
+        imagebox = OffsetImage(img, zoom=scale)
+        imagebox.image.axes = ax
+
+        # Mapping of location strings to axes fraction coordinates and box alignment
+        loc_map = {
+            "upper right": ((1 - pad, 1 - pad), (1, 1)),
+            "upper left": ((pad, 1 - pad), (0, 1)),
+            "lower right": ((1 - pad, pad), (1, 0)),
+            "lower left": ((pad, pad), (0, 0)),
+            "center": ((0.5, 0.5), (0.5, 0.5)),
+        }
+
+        if loc in loc_map:
+            xy, box_alignment = loc_map[loc]
+        else:
+            # If loc is not a string in loc_map, assume it might be a coordinate
+            # tuple, but for simplicity we default to upper right if it's invalid
+            if isinstance(loc, tuple) and len(loc) == 2:
+                xy = loc
+                box_alignment = (0.5, 0.5)
+            else:
+                xy, box_alignment = loc_map["upper right"]
+
+        ab = AnnotationBbox(
+            imagebox,
+            xy,
+            xycoords="axes fraction",
+            box_alignment=box_alignment,
+            pad=0,
+            frameon=False,
+            **kwargs,
+        )
+
+        ax.add_artist(ab)
+        return ab
 
     def add_colorbar(
         self,
