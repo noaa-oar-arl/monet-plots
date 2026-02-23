@@ -1,9 +1,10 @@
 import numpy as np
 import xarray as xr
-from monet_plots.plots.spatial_imshow import SpatialImshowPlot
-from monet_plots.plots.spatial_contour import SpatialContourPlot
+
 from monet_plots.plots.spatial import SpatialTrack
 from monet_plots.plots.spatial_bias_scatter import SpatialBiasScatterPlot
+from monet_plots.plots.spatial_contour import SpatialContourPlot
+from monet_plots.plots.spatial_imshow import SpatialImshowPlot
 
 
 def create_mock_data(lazy=False):
@@ -117,6 +118,7 @@ def test_imshow_plot_parity():
 def test_spatial_facet_grid_laziness():
     """Verify SpatialFacetGridPlot handles lazy data without eager compute."""
     import matplotlib.pyplot as plt
+
     from monet_plots.plots.facet_grid import SpatialFacetGridPlot
 
     plt.switch_backend("Agg")

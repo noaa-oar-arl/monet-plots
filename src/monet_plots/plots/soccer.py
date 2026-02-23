@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
 import matplotlib.patches as patches
 import numpy as np
 import xarray as xr
-from typing import Any, Optional, Dict, TYPE_CHECKING
 
-from .base import BasePlot
 from ..plot_utils import _update_history, normalize_data
 from ..verification_metrics import (
     compute_mfb,
@@ -16,6 +16,7 @@ from ..verification_metrics import (
     compute_nmb,
     compute_nme,
 )
+from .base import BasePlot
 
 if TYPE_CHECKING:
     import matplotlib.axes
