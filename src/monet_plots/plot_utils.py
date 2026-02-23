@@ -214,7 +214,6 @@ def _update_history(obj: Any, msg: str) -> Any:
     return obj
 
 
-<<<<<<< develop
 def _try_xarray_conversion(data: Any) -> Any:
     """Internal helper to convert data to xarray if possible."""
     if xr is None:
@@ -243,9 +242,6 @@ def _convert_numpy_to_dataframe(data: np.ndarray) -> pd.DataFrame:
 
 
 def _normalize_data(data: Any, prefer_xarray: bool = True) -> Any:
-=======
-def _normalize_data(data: Any) -> Any:
->>>>>>> main
     """
     Normalize input data to a standardized format.
 
@@ -266,19 +262,10 @@ def _normalize_data(data: Any) -> Any:
     Raises:
         TypeError: If the input data type is not supported
     """
-<<<<<<< develop
     # Check if data is already a desired format
     if xr is not None and isinstance(data, (xr.DataArray, xr.Dataset)):
         return data
 
-=======
-    # Try xarray conversion first
-    xarray_result = _try_xarray_conversion(data)
-    if xarray_result is not None:
-        return xarray_result
-
-    # Check if data is a pandas DataFrame
->>>>>>> main
     if isinstance(data, pd.DataFrame):
         return data
 
