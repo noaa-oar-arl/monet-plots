@@ -27,6 +27,13 @@ dependencies = [
     "statsmodels",
     "dask",
     "monet-stats @ git+https://github.com/bbakernoaa/monet-stats.git",
+<<<<<<< develop
+=======
+    "hvplot",
+    "holoviews",
+    "geoviews",
+    "datashader",
+>>>>>>> main
     "flox",
 ]
 
