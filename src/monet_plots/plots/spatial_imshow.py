@@ -23,24 +23,24 @@ class SpatialImshowPlot(SpatialPlot):
 
     def __new__(
         cls,
-        modelvar: Any,
+        data: Any = None,
         gridobj: Any | None = None,
         plotargs: dict[str, Any] | None = None,
+        modelvar: Any = None,
         **kwargs: Any,
     ) -> Any:
         """Redirect to SpatialFacetGridPlot if faceting is requested.
 
-        This enables a unified interface for both single-panel and multi-panel
-        spatial plots, following Xarray's plotting conventions.
-
         Parameters
         ----------
-        modelvar : Any
+        data : Any
             The input data to plot.
         gridobj : Any, optional
             Object with LAT and LON variables, by default None.
         plotargs : dict, optional
             Arguments for imshow, by default None.
+        modelvar : Any, optional
+            Deprecated alias for ``data``.
         **kwargs : Any
             Additional keyword arguments. If faceting arguments (e.g., `col`,
             `row`, or `col_wrap`) are provided, redirects to `SpatialFacetGridPlot`.
@@ -53,6 +53,7 @@ class SpatialImshowPlot(SpatialPlot):
         from .facet_grid import SpatialFacetGridPlot
 
         ax = kwargs.get("ax")
+        _data = data if data is not None else modelvar
 
         # Aligns with Xarray's trigger for faceting
         facet_kwargs = ["col", "row", "col_wrap"]
@@ -60,23 +61,19 @@ class SpatialImshowPlot(SpatialPlot):
 
         # Redirect to FacetGrid if faceting requested and no existing axes
         if ax is None and is_faceting:
-            return SpatialFacetGridPlot(modelvar, **kwargs)
+            return SpatialFacetGridPlot(_data, **kwargs)
 
         # Also redirect if input is a Dataset with multiple variables
-        if (
-            ax is None
-            and isinstance(modelvar, xr.Dataset)
-            and len(modelvar.data_vars) > 1
-        ):
+        if ax is None and isinstance(_data, xr.Dataset) and len(_data.data_vars) > 1:
             # Default to faceting by variable if not specified
             kwargs.setdefault("col", "variable")
-            return SpatialFacetGridPlot(modelvar, **kwargs)
+            return SpatialFacetGridPlot(_data, **kwargs)
 
         return super().__new__(cls)
 
     def __init__(
         self,
-        modelvar: Any,
+        data: Any = None,
         gridobj: Any | None = None,
         plotargs: dict[str, Any] | None = None,
         ncolors: int = 15,
@@ -86,13 +83,14 @@ class SpatialImshowPlot(SpatialPlot):
         col_wrap: int | None = None,
         size: float | None = None,
         aspect: float | None = None,
+        modelvar: Any = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the spatial imshow plot.
 
         Parameters
         ----------
-        modelvar : Any
+        data : Any
             The input data to plot. Preferred format is an xarray DataArray.
         gridobj : Any, optional
             Object with LAT and LON variables to determine extent, by default None.
@@ -112,6 +110,8 @@ class SpatialImshowPlot(SpatialPlot):
             Height (in inches) of each facet. Aligns with Xarray.
         aspect : float, optional
             Aspect ratio of each facet. Aligns with Xarray.
+        modelvar : Any, optional
+            Deprecated alias for ``data``.
         **kwargs : Any
             Keyword arguments passed to :class:`SpatialPlot` for map features
             and projection.
@@ -119,8 +119,11 @@ class SpatialImshowPlot(SpatialPlot):
         # Initialize the map canvas via SpatialPlot
         super().__init__(**kwargs)
 
+        if modelvar is not None and data is None:
+            data = modelvar
         # Standardize data to Xarray for consistency and lazy evaluation
-        self.modelvar = normalize_data(modelvar)
+        self.modelvar = normalize_data(data)
+        self.data = self.modelvar
         if isinstance(self.modelvar, xr.Dataset) and len(self.modelvar.data_vars) == 1:
             self.modelvar = self.modelvar[list(self.modelvar.data_vars)[0]]
 
@@ -180,6 +183,9 @@ class SpatialImshowPlot(SpatialPlot):
                     self.modelvar, self.lon_coord, self.lat_coord
                 )
 
+        # Capture extent before add_features pops it
+        extent = kwargs.get("extent")
+
         # Draw map features and get remaining kwargs for imshow
         imshow_kwargs = self.add_features(**kwargs)
 
@@ -191,8 +197,8 @@ class SpatialImshowPlot(SpatialPlot):
         imshow_kwargs.setdefault("origin", "lower")
         imshow_kwargs.setdefault("transform", ccrs.PlateCarree())
 
-        # Extract extent for imshow [left, right, bottom, top]
-        extent = imshow_kwargs.pop("extent", None)
+        # If plotargs provided a different extent, use it
+        extent = imshow_kwargs.pop("extent", extent)
 
         # Delay computation as much as possible
         # For imshow, we still need concrete values for Track A.
@@ -203,6 +209,15 @@ class SpatialImshowPlot(SpatialPlot):
         final_kwargs = get_plot_kwargs(**imshow_kwargs)
 
         img = self.ax.imshow(model_values, extent=extent, **final_kwargs)
+
+        # Build colorbar label from variable attributes
+        _long_name = getattr(self.modelvar, "attrs", {}).get("long_name", "")
+        _units = getattr(self.modelvar, "attrs", {}).get("units", "")
+        _cbar_label = (
+            f"{_long_name} ({_units})"
+            if _long_name and _units
+            else _long_name or _units or None
+        )
 
         # Handle colorbar
         if self.discrete:
@@ -215,7 +230,15 @@ class SpatialImshowPlot(SpatialPlot):
                 ax=self.ax,
             )
         else:
-            self.add_colorbar(img)
+            self.add_colorbar(img, label=_cbar_label)
+
+        # Set title from variable name/long_name if not already set
+        if not self.ax.get_title():
+            _title = getattr(self.modelvar, "attrs", {}).get("long_name") or getattr(
+                self.modelvar, "name", None
+            )
+            if _title:
+                self.ax.set_title(_title)
 
         return self.ax
 

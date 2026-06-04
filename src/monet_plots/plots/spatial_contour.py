@@ -8,12 +8,11 @@ import numpy as np
 import xarray as xr
 
 from ..colorbars import colorbar_index
-from ..plot_utils import _update_history, get_plot_kwargs, normalize_data
+from ..plot_utils import _update_history, compute, get_plot_kwargs, normalize_data
 from .spatial import SpatialPlot
 
 if TYPE_CHECKING:
     from datetime import datetime
-
     from matplotlib.axes import Axes
 
 
@@ -27,9 +26,10 @@ class SpatialContourPlot(SpatialPlot):
 
     def __new__(
         cls,
-        modelvar: Any,
+        data: Any = None,
         gridobj: Any | None = None,
         date: Any | None = None,
+        modelvar: Any = None,
         **kwargs: Any,
     ) -> Any:
         """Redirect to SpatialFacetGridPlot if faceting is requested.
@@ -57,6 +57,8 @@ class SpatialContourPlot(SpatialPlot):
         from .facet_grid import SpatialFacetGridPlot
 
         ax = kwargs.get("ax")
+        # Resolve data/modelvar alias
+        _data = data if data is not None else modelvar
 
         # Aligns with Xarray's trigger for faceting
         facet_kwargs = ["col", "row", "col_wrap"]
@@ -64,23 +66,19 @@ class SpatialContourPlot(SpatialPlot):
 
         # Redirect to FacetGrid if faceting requested and no existing axes
         if ax is None and is_faceting:
-            return SpatialFacetGridPlot(modelvar, **kwargs)
+            return SpatialFacetGridPlot(_data, **kwargs)
 
         # Also redirect if input is a Dataset with multiple variables
-        if (
-            ax is None
-            and isinstance(modelvar, xr.Dataset)
-            and len(modelvar.data_vars) > 1
-        ):
+        if ax is None and isinstance(_data, xr.Dataset) and len(_data.data_vars) > 1:
             # Default to faceting by variable if not specified
             kwargs.setdefault("col", "variable")
-            return SpatialFacetGridPlot(modelvar, **kwargs)
+            return SpatialFacetGridPlot(_data, **kwargs)
 
         return super().__new__(cls)
 
     def __init__(
         self,
-        modelvar: Any,
+        data: Any = None,
         gridobj: Any | None = None,
         date: datetime | None = None,
         discrete: bool = True,
@@ -91,13 +89,14 @@ class SpatialContourPlot(SpatialPlot):
         col_wrap: int | None = None,
         size: float | None = None,
         aspect: float | None = None,
+        modelvar: Any = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the spatial contour plot.
 
         Parameters
         ----------
-        modelvar : Any
+        data : Any
             The input data to contour. Preferred format is an xarray DataArray.
         gridobj : Any, optional
             Object with LAT and LON variables to determine extent, by default None.
@@ -119,6 +118,8 @@ class SpatialContourPlot(SpatialPlot):
             Height (in inches) of each facet. Aligns with Xarray.
         aspect : float, optional
             Aspect ratio of each facet. Aligns with Xarray.
+        modelvar : Any, optional
+            Deprecated alias for ``data``.
         **kwargs : Any
             Keyword arguments passed to :class:`SpatialPlot` for map features
             and projection.
@@ -126,8 +127,11 @@ class SpatialContourPlot(SpatialPlot):
         # Initialize the map canvas via SpatialPlot
         super().__init__(**kwargs)
 
+        if modelvar is not None and data is None:
+            data = modelvar
         # Standardize data to Xarray for consistency and lazy evaluation
-        self.modelvar = normalize_data(modelvar)
+        self.modelvar = normalize_data(data)
+        self.data = self.modelvar
         if isinstance(self.modelvar, xr.Dataset) and len(self.modelvar.data_vars) == 1:
             self.modelvar = self.modelvar[list(self.modelvar.data_vars)[0]]
 
@@ -242,14 +246,7 @@ class SpatialContourPlot(SpatialPlot):
                 if isinstance(levels, int):
                     ncolors = levels - 1
                     # Use a single compute call for efficiency (Aero Protocol)
-                    try:
-                        import dask
-
-                        dmin, dmax = dask.compute(
-                            self.modelvar.min(), self.modelvar.max()
-                        )
-                    except (ImportError, AttributeError):
-                        dmin, dmax = self.modelvar.min(), self.modelvar.max()
+                    dmin, dmax = compute(self.modelvar.min(), self.modelvar.max())
 
                     # Handle pandas DataFrame where .min() returns a Series
                     try:
@@ -276,12 +273,7 @@ class SpatialContourPlot(SpatialPlot):
             if levels_seq is None:
                 # Fallback: calculate from data to ensure a discrete colorbar
                 # if requested but no levels were provided.
-                try:
-                    import dask
-
-                    dmin, dmax = dask.compute(self.modelvar.min(), self.modelvar.max())
-                except (ImportError, AttributeError):
-                    dmin, dmax = self.modelvar.min(), self.modelvar.max()
+                dmin, dmax = compute(self.modelvar.min(), self.modelvar.max())
 
                 # Handle pandas DataFrame where .min() returns a Series
                 try:
@@ -316,8 +308,23 @@ class SpatialContourPlot(SpatialPlot):
         if self.date:
             titstring = self.date.strftime("%B %d %Y %H")
             self.ax.set_title(titstring)
+        else:
+            # Fall back to variable long_name or name for the title
+            _title = getattr(self.modelvar, "attrs", {}).get("long_name") or getattr(
+                self.modelvar, "name", None
+            )
+            if _title and not self.ax.get_title():
+                self.ax.set_title(_title)
 
-        self.fig.tight_layout()
+        # Label the colorbar with units if available and not already labelled
+        _units = getattr(self.modelvar, "attrs", {}).get("units", "")
+        if _units:
+            for child in self.fig.get_children():
+                if hasattr(child, "ax") and hasattr(child, "set_label"):
+                    if not child.ax.get_ylabel() and not child.ax.get_xlabel():
+                        child.set_label(_units)
+                        break
+
         return self.ax
 
     def hvplot(self, **kwargs: Any) -> Any:
