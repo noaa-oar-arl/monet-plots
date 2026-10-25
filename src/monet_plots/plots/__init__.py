@@ -1,17 +1,25 @@
 from .base import BasePlot
 from .brier_decomposition import BrierScoreDecompositionPlot
+from .categorical import categorical_plot
 from .conditional_bias import ConditionalBiasPlot
 from .conditional_quantile import ConditionalQuantilePlot
 from .curtain import CurtainPlot
 from .diurnal_error import DiurnalErrorPlot
 from .ensemble import SpreadSkillPlot
-from .facet_grid import FacetGridPlot
+from .facet_grid import FacetGridPlot, SpatialFacetGridPlot
 from .fingerprint import FingerprintPlot
 from .kde import KDEPlot
+from .layout import PlotLayout
 from .performance_diagram import PerformanceDiagramPlot
 from .polar import BivariatePolarPlot
+from .profile import (
+    ProfilePlot,
+    StickPlot,
+    VerticalBoxPlot,
+    VerticalProfilePlot,
+    VerticalSlice,
+)
 from .radar import RadarPlot
-from .profile import ProfilePlot, StickPlot, VerticalBoxPlot, VerticalSlice
 from .rank_histogram import RankHistogramPlot
 from .reliability_diagram import ReliabilityDiagramPlot
 from .rev import RelativeEconomicValuePlot
@@ -19,19 +27,27 @@ from .ridgeline import RidgelinePlot
 from .roc_curve import ROCCurvePlot
 from .scatter import ScatterPlot
 from .scorecard import ScorecardPlot
+from .skewt import SkewTPlot
 from .soccer import SoccerPlot
 from .spatial import SpatialPlot, SpatialTrack
 from .spatial_bias_scatter import SpatialBiasScatterPlot
+from .spatial_comparison import SpatialComparisonPlot
 from .spatial_contour import SpatialContourPlot
 from .spatial_imshow import SpatialImshowPlot
+from .spatial_mesh import SpatialMeshPlot
+from .spatial_overlay import SpatialOverlayPlot
 from .taylor_diagram import TaylorDiagramPlot
-from .timeseries import TimeSeriesPlot, TimeSeriesStatsPlot, TimeSeriesErrorBarPlot
+from .timeseries import TimeSeriesErrorBarPlot, TimeSeriesPlot, TimeSeriesStatsPlot
 from .trajectory import TrajectoryPlot
 from .wind_barbs import WindBarbsPlot
 from .wind_quiver import WindQuiverPlot
-from .categorical import categorical_plot
 
 __all__ = [
+    "PlotLayout",
+    "SkewTPlot",
+    "SpatialComparisonPlot",
+    "SpatialMeshPlot",
+    "SpatialFacetGridPlot",
     "BasePlot",
     "ScatterPlot",
     "TimeSeriesPlot",
@@ -47,11 +63,11 @@ __all__ = [
     "SpatialBiasScatterPlot",
     "SpatialContourPlot",
     "SpatialImshowPlot",
-    "SpScatterBiasPlot",
     "ProfilePlot",
     "VerticalSlice",
     "StickPlot",
     "VerticalBoxPlot",
+    "VerticalProfilePlot",
     "TrajectoryPlot",
     "RidgelinePlot",
     "PerformanceDiagramPlot",
@@ -66,6 +82,7 @@ __all__ = [
     "SpreadSkillPlot",
     "SoccerPlot",
     "CurtainPlot",
+    "SpatialOverlayPlot",
     "DiurnalErrorPlot",
     "FingerprintPlot",
     "BivariatePolarPlot",

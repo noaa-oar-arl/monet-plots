@@ -102,7 +102,7 @@ class ConditionalBiasPlot(BasePlot):
         # Allow override of var1/var2 at plot time
         var1 = var1 or obs_col or self.var1
         var2 = var2 or fcst_col or self.var2
-        if var1 is None or var2 is None:
+        if not isinstance(plot_data, xr.DataArray) and (var1 is None or var2 is None):
             raise ValueError("Both 'var1' and 'var2' must be specified.")
 
         try:
@@ -120,9 +120,12 @@ class ConditionalBiasPlot(BasePlot):
                 elif isinstance(plot_data, xr.DataArray):
                     v2 = plot_data
                     v1 = kwargs.pop("var1_data", None)
+                    legacy_obs = kwargs.pop("obs", None)
+                    if v1 is None:
+                        v1 = legacy_obs
                     if v1 is None:
                         raise ValueError(
-                            "var1_data must be provided if data is a DataArray."
+                            "obs must be provided (or var1_data) if data is a DataArray."
                         )
                 elif isinstance(plot_data, pd.DataFrame):
                     v1 = plot_data[var1]
@@ -136,7 +139,11 @@ class ConditionalBiasPlot(BasePlot):
 
         self.ax.axhline(0, color="k", linestyle="--", linewidth=1.5, alpha=0.7)
 
-        xlabel = var1
+        xlabel = (
+            plot_data[var1].attrs.get("long_name", var1)
+            if isinstance(plot_data, xr.Dataset)
+            else var1 or "Observed Value"
+        )
         self.ax.set_xlabel(xlabel)
         self.ax.set_ylabel(f"Mean Bias ({var2} - {var1})")
 
@@ -222,7 +229,9 @@ class ConditionalBiasPlot(BasePlot):
                 s = get_stats(group)
                 s = s.assign_coords({label_col: name}).expand_dims(label_col)
                 stats_list.append(s)
-            pdf = xr.concat(stats_list, dim=label_col).dropna(dim="bin_center")
+            pdf = xr.concat(stats_list, dim=label_col, join="outer").dropna(
+                dim="bin_center"
+            )
             by = label_col
         else:
             if isinstance(plot_data, xr.Dataset):

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import typing as t
+from typing import Any, Union
 
 import numpy as np
 from matplotlib import pyplot as plt
 
-from .. import tools
+from .. import tools, verification_metrics
+from ..plot_utils import _update_history, normalize_data
 from .base import BasePlot
+from .vertical import configure_vertical_axis
 
 
 class ProfilePlot(BasePlot):
@@ -45,7 +48,11 @@ class ProfilePlot(BasePlot):
         y: np.ndarray = None,  # legacy alias
         **kwargs: t.Any,
     ) -> None:
+        vertical_axis = kwargs.pop("vertical_axis", "auto")
+        yscale = kwargs.pop("yscale", None)
         super().__init__(**kwargs)
+        self.vertical_axis = vertical_axis
+        self.yscale = yscale
         self.x = var1 if var1 is not None else x
         if alt_adjust is not None:
             self.y = (var2 if var2 is not None else y) - alt_adjust
@@ -66,10 +73,203 @@ class ProfilePlot(BasePlot):
                 self.fig = plt.figure()
             self.ax = self.fig.add_subplot()
 
+        if self.x is None or self.y is None:
+            raise ValueError("ProfilePlot requires x/var1 and y/var2")
         if self.z is not None:
             self.ax.contourf(self.x, self.y, self.z, **kwargs)
         else:
             self.ax.plot(self.x, self.y, **kwargs)
+        configure_vertical_axis(self.ax, self.y, self.vertical_axis, self.yscale)
+        return self.ax
+
+
+class VerticalProfilePlot(BasePlot):
+    """Vertical profile plot comparing observations and models.
+
+    Supports multiple models, binned statistics (median, IQR, box-whisker),
+    and both shading and boxplot styles.
+    """
+
+    def __init__(
+        self,
+        data: Any,
+        obs_col: str,
+        mod_cols: Union[str, list[str]],
+        alt_col: str = "altitude",
+        *,
+        bins: Any = 10,
+        interquartile_style: str = "shading",
+        fig: plt.Figure | None = None,
+        ax: plt.Axes | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Initialize the vertical profile plot.
+
+        Parameters
+        ----------
+        data : Any
+            Input data (Pandas DataFrame, Xarray Dataset/DataArray).
+        obs_col : str
+            Column name for observations.
+        mod_cols : Union[str, list[str]]
+            Column name(s) for model data.
+        alt_col : str, optional
+            Column name for altitude/pressure, by default "altitude".
+        bins : Any, optional
+            Number of bins or bin edges for vertical grouping, by default 10.
+        interquartile_style : str, optional
+            Style for representing the interquartile range: 'shading' or 'box',
+            by default 'shading'.
+        fig : plt.Figure, optional
+            Existing figure object, by default None.
+        ax : plt.Axes, optional
+            Existing axes object, by default None.
+        **kwargs : Any
+            Additional arguments passed to BasePlot.
+        """
+        self.vertical_axis = kwargs.pop("vertical_axis", "auto")
+        self.yscale = kwargs.pop("yscale", None)
+        if interquartile_style not in {"shading", "box"}:
+            raise ValueError("interquartile_style must be 'shading' or 'box'")
+        super().__init__(fig=fig, ax=ax, **kwargs)
+        self.data = normalize_data(data)
+        self.obs_col = obs_col
+        self.mod_cols = [mod_cols] if isinstance(mod_cols, str) else mod_cols
+        self.alt_col = alt_col
+        self.bins = bins
+        self.interquartile_style = interquartile_style
+
+        _update_history(self.data, "Initialized monet-plots.VerticalProfilePlot")
+
+    def plot(self, **kwargs: Any) -> plt.Axes:
+        """
+        Generate the vertical profile plot.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments passed to `matplotlib.pyplot.plot` or `ax.bxp`.
+        """
+        if self.ax is None:
+            self.ax = self.fig.add_subplot(1, 1, 1)
+
+        # For Xarray, we might have dimensions to reduce.
+        # If it's aircraft/sonde data, it's often 1D already.
+        # But we'll handle the grouping generally.
+
+        # Calculate statistics for each variable
+        for i, col in enumerate([self.obs_col] + self.mod_cols):
+            stats = verification_metrics.compute_binned_quantiles(
+                self.data[col],
+                self.data[self.alt_col],
+                bins=self.bins,
+                quantiles=[0.1, 0.25, 0.5, 0.75, 0.9],
+            )
+
+            # Performance: compute only once
+            if hasattr(stats, "compute"):
+                stats = stats.compute()
+
+            label = col
+            line_kwargs = dict(kwargs)
+            color = line_kwargs.pop("color", plt.cm.tab10(i))
+            line_kwargs.pop("label", None)
+
+            if self.interquartile_style == "shading":
+                # Plot median line
+                self.ax.plot(
+                    stats["q0.5"],
+                    stats["bin_center"],
+                    label=f"{label} (median)",
+                    color=color,
+                    **line_kwargs,
+                )
+                # Plot IQR shading
+                self.ax.fill_betweenx(
+                    stats["bin_center"],
+                    stats["q0.25"],
+                    stats["q0.75"],
+                    alpha=0.3,
+                    color=color,
+                )
+            elif self.interquartile_style == "box":
+                # Create boxplot data for ax.bxp
+                bxp_stats = []
+                for j in range(len(stats["bin_center"])):
+                    # Check if we have valid data in this bin
+                    if np.isnan(stats["q0.5"].values[j]):
+                        continue
+
+                    bxp_stats.append(
+                        {
+                            "med": stats["q0.5"].values[j],
+                            "q1": stats["q0.25"].values[j],
+                            "q3": stats["q0.75"].values[j],
+                            "whislo": stats["q0.1"].values[j],
+                            "whishi": stats["q0.9"].values[j],
+                            "fliers": [],
+                        }
+                    )
+
+                if bxp_stats:
+                    positions = stats["bin_center"].values[
+                        ~np.isnan(stats["q0.5"].values)
+                    ]
+                    # Determine width based on bin size
+                    width = (
+                        np.diff(stats["bin_center"].values).min() * 0.5
+                        if len(positions) > 1
+                        else 0.5
+                    )
+
+                    self.ax.bxp(
+                        bxp_stats,
+                        orientation="horizontal",
+                        positions=positions,
+                        widths=width,
+                        boxprops=dict(color=color),
+                        whiskerprops=dict(color=color),
+                        capprops=dict(color=color),
+                        medianprops=dict(color=color, linewidth=2),
+                        showfliers=False,
+                    )
+                    # Also plot a dummy line for the legend
+                    self.ax.plot([], [], color=color, label=f"{label} (box-whisker)")
+
+        self.ax.set_ylabel(self.alt_col)
+        self.ax.set_xlabel(self.obs_col)
+        configure_vertical_axis(
+            self.ax, self.data[self.alt_col], self.vertical_axis, self.yscale
+        )
+        self.ax.legend()
+        return self.ax
+
+    def hvplot(self, **kwargs: Any) -> Any:
+        """Generate an interactive vertical profile plot using hvPlot (Track B)."""
+        try:
+            import hvplot.xarray  # noqa: F401
+        except ImportError:
+            raise ImportError(
+                "hvplot is required for interactive plotting. Install it with 'pip install hvplot'."
+            )
+
+        # Basic implementation: median line only for interactive
+        plots = []
+        for i, col in enumerate([self.obs_col] + self.mod_cols):
+            stats = verification_metrics.compute_binned_quantiles(
+                self.data[col],
+                self.data[self.alt_col],
+                bins=self.bins,
+                quantiles=[0.5],
+            )
+            plots.append(
+                stats.hvplot.line(x="q0.5", y="bin_center", label=col, **kwargs)
+            )
+
+        import holoviews as hv
+
+        return hv.Overlay(plots).opts(title="Interactive Vertical Profile")
 
 
 class VerticalSlice(ProfilePlot):
@@ -93,7 +293,11 @@ class VerticalSlice(ProfilePlot):
                 self.fig = plt.figure()
             self.ax = self.fig.add_subplot()
 
+        if self.z is None:
+            raise ValueError("VerticalSlice requires z values")
         self.ax.contourf(self.x, self.y, self.z, **kwargs)
+        configure_vertical_axis(self.ax, self.y, self.vertical_axis, self.yscale)
+        return self.ax
 
 
 class StickPlot(BasePlot):
@@ -108,24 +312,23 @@ class StickPlot(BasePlot):
             y (np.ndarray, pd.Series, xr.DataArray): Vertical coordinate.
             **kwargs: Additional keyword arguments passed to BasePlot.
         """
+        self.vertical_axis = kwargs.pop("vertical_axis", "auto")
+        self.yscale = kwargs.pop("yscale", None)
         super().__init__(*args, **kwargs)
-        self.u = u
-        self.v = v
-        self.y = y
+        self.u = np.asarray(u)
+        self.v = np.asarray(v)
+        self.y = np.asarray(y)
+        if self.u.shape != self.v.shape or self.u.shape != self.y.shape:
+            raise ValueError("u, v, and vertical coordinate must have matching shapes")
         self.x = np.zeros_like(self.y)
 
-    def plot(self, **kwargs: t.Any) -> None:
-        """
-        Parameters
-        ----------
-        **kwargs
-            Keyword arguments passed to `matplotlib.pyplot.quiver`.
-        """
+    def plot(self, **kwargs: t.Any):
+        """Draw the vector sticks and return the Matplotlib quiver artist."""
         if self.ax is None:
             if self.fig is None:
                 self.fig = plt.figure()
             self.ax = self.fig.add_subplot()
-
+        configure_vertical_axis(self.ax, self.y, self.vertical_axis, self.yscale)
         return self.ax.quiver(self.x, self.y, self.u, self.v, **kwargs)
 
 
@@ -133,38 +336,33 @@ class VerticalBoxPlot(BasePlot):
     """Vertical box plot."""
 
     def __init__(self, data, y, thresholds, *args, **kwargs):
-        """
-        Initialize the vertical box plot.
-        Args:
-            data (np.ndarray, pd.Series, xr.DataArray): Data to plot.
-            y (np.ndarray, pd.Series, xr.DataArray): Vertical coordinate.
-            thresholds (list): List of thresholds to bin the data.
-            **kwargs: Additional keyword arguments passed to BasePlot.
-        """
+        self.vertical_axis = kwargs.pop("vertical_axis", "auto")
+        self.yscale = kwargs.pop("yscale", None)
         super().__init__(*args, **kwargs)
-        self.data = data
-        self.y = y
-        self.thresholds = thresholds
+        self.data = np.asarray(data)
+        self.y = np.asarray(y)
+        self.thresholds = np.asarray(thresholds, dtype=float)
+        if self.data.shape != self.y.shape:
+            raise ValueError("data and vertical coordinate must have matching shapes")
+        if (
+            self.thresholds.ndim != 1
+            or len(self.thresholds) < 2
+            or not np.all(np.isfinite(self.thresholds))
+            or not np.all(np.diff(self.thresholds) > 0)
+        ):
+            raise ValueError(
+                "thresholds must be finite, one-dimensional, and strictly increasing"
+            )
 
-    def plot(self, **kwargs: t.Any) -> None:
-        """
-        Parameters
-        ----------
-        **kwargs
-            Keyword arguments passed to `matplotlib.pyplot.boxplot`.
-        """
+    def plot(self, **kwargs: t.Any):
+        """Draw horizontal distributions in vertical-coordinate bins."""
         if self.ax is None:
             if self.fig is None:
                 self.fig = plt.figure()
             self.ax = self.fig.add_subplot()
-
         output_list = tools.split_by_threshold(self.data, self.y, self.thresholds)
-        position_list_1 = self.thresholds[:-1]
-        position_list_2 = self.thresholds[1:]
-        position_list_mid = [
-            (p1 + p2) / 2 for p1, p2 in zip(position_list_1, position_list_2)
-        ]
-
-        return self.ax.boxplot(
-            output_list, orientation="horizontal", positions=position_list_mid, **kwargs
-        )
+        mids = (self.thresholds[:-1] + self.thresholds[1:]) / 2
+        widths = np.diff(self.thresholds) * 0.5
+        kwargs.setdefault("orientation", "horizontal")
+        configure_vertical_axis(self.ax, self.y, self.vertical_axis, self.yscale)
+        return self.ax.boxplot(output_list, positions=mids, widths=widths, **kwargs)
