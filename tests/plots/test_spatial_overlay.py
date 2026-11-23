@@ -45,3 +45,20 @@ def test_overlay_marker_options():
         np.testing.assert_allclose(plot.observation_artist.get_sizes(), [100])
     finally:
         plot.close()
+
+
+def test_overlay_automatic_limits_ignore_infinity():
+    model = xr.DataArray(
+        [[1.0, 2.0], [3.0, np.inf]],
+        dims=("lat", "lon"),
+        coords={"lat": [30, 40], "lon": [-100, -90]},
+    )
+    obs = pd.DataFrame({"latitude": [35], "longitude": [-95], "value": [9]})
+    plot = SpatialOverlayPlot(model, obs, coastlines=False)
+    try:
+        plot.plot(kind="pcolormesh", vmin=0)
+        assert plot.mappable.norm.vmin == 0
+        assert plot.mappable.norm.vmax == 9
+        assert plot.observation_artist.norm is plot.mappable.norm
+    finally:
+        plot.close()

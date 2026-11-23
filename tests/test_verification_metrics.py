@@ -363,3 +363,30 @@ def test_lazy_crps():
     # Check pixel value
     np.testing.assert_allclose(crps_lazy.compute()[0, 0], expected_pixel)
     assert "Calculated CRPS" in crps_lazy.attrs["history"]
+
+
+def test_binned_quantiles_keep_boundaries_and_empty_bins():
+    from monet_plots.verification_metrics import compute_binned_quantiles
+
+    values = xr.DataArray([2.0, 6.0, 10.0], dims="sample")
+    heights = xr.DataArray([0.0, 1.0, 3.0], dims="sample")
+    kwargs = {"bins": [0, 1, 2, 3], "quantiles": 0.5}
+    expected = compute_binned_quantiles(values, heights, **kwargs)
+    lazy = compute_binned_quantiles(
+        values.chunk({"sample": 1}), heights.chunk({"sample": 1}), **kwargs
+    )
+
+    np.testing.assert_allclose(expected.bin_center, [0.5, 1.5, 2.5])
+    np.testing.assert_allclose(expected["q0.5"], [4, np.nan, 10])
+    assert lazy["q0.5"].chunks is not None
+    xr.testing.assert_allclose(lazy.compute(), expected)
+
+
+def test_binned_quantiles_allow_constant_altitude():
+    from monet_plots.verification_metrics import compute_binned_quantiles
+
+    values = xr.DataArray([2.0, 6.0], dims="sample")
+    heights = xr.DataArray([450.0, 450.0], dims="sample")
+    result = compute_binned_quantiles(values, heights, bins=2, quantiles=0.5)
+    assert result.sizes["bin_center"] == 2
+    np.testing.assert_allclose(result["q0.5"].dropna("bin_center"), [4])

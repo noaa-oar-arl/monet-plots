@@ -73,7 +73,7 @@ class TimeSeriesPlot(BasePlot):
         self,
         y2: Optional[str] = None,
         y2_label: Optional[str] = None,
-        y2_kwargs: dict = {},
+        y2_kwargs: Optional[dict] = None,
         **kwargs: Any,
     ) -> plt.Axes:
         """
@@ -115,6 +115,7 @@ class TimeSeriesPlot(BasePlot):
 
         if y2:
             ax2 = ax.twinx()
+            secondary_options = {"label": y2, **(y2_kwargs or {})}
             if isinstance(self.data, (xr.DataArray, xr.Dataset)):
                 # Simplified xarray plot for secondary axis
                 # Assume 1D or take mean
@@ -124,11 +125,15 @@ class TimeSeriesPlot(BasePlot):
                     if dims_to_reduce
                     else self.data[y2]
                 )
-                y2_data.plot(ax=ax2, **y2_kwargs)
+                y2_data.plot(ax=ax2, **secondary_options)
             else:
-                # Pandas
-                m = self.data.groupby(self.x).mean(numeric_only=True)
-                m[y2].plot(ax=ax2, **y2_kwargs)
+                means = self.data.groupby(self.x)[y2].mean()
+                ax2.plot(
+                    means.index,
+                    means.to_numpy(dtype=float, na_value=float("nan")),
+                    **secondary_options,
+                )
+                ax2.set_ylabel(y2)
 
             if y2_label:
                 ax2.set_ylabel(y2_label)

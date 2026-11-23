@@ -293,13 +293,15 @@ def compute_binned_quantiles(
     data: Union[np.ndarray, xr.DataArray],
     bin_data: Union[np.ndarray, xr.DataArray],
     bins: Any = 10,
-    quantiles: Union[float, list[float]] = [0.25, 0.5, 0.75],
+    quantiles: Union[float, list[float], tuple[float, ...]] = (0.25, 0.5, 0.75),
     dim: Optional[Union[str, list[str]]] = None,
 ) -> xr.Dataset:
     """
     Calculates quantiles of data binned by another variable (e.g., altitude).
 
-    Supports lazy evaluation for Dask-backed Xarray objects.
+    Supports lazy evaluation for Dask-backed Xarray objects. Bins include their
+    right edge, and the first bin also includes its left edge. Empty bins
+    return NaN quantiles.
 
     Parameters
     ----------
@@ -324,69 +326,42 @@ def compute_binned_quantiles(
     if not isinstance(bin_data, xr.DataArray):
         bin_data = xr.DataArray(bin_data)
 
-    if isinstance(quantiles, float):
-        quantiles = [quantiles]
-
-    # Handle Dask laziness by avoiding flox for quantile if necessary
-    # or using a loop over bins if flox/xarray doesn't support lazy quantile grouping.
-    if isinstance(bins, int):
-        bin_min, bin_max = bin_data.min(), bin_data.max()
-        if hasattr(bin_data.data, "chunks"):
-            import dask
-
-            bin_min, bin_max = dask.compute(bin_min, bin_max)
-        bins = np.linspace(float(bin_min), float(bin_max), bins + 1)
-
-    midpoints = (bins[:-1] + bins[1:]) / 2
-
-    # Handle lazy data for quantile aggregation
-    if hasattr(data.data, "chunks"):
-        # flox doesn't support lazy quantile. Use vectorized approach per bin.
-        results = {}
-        for q in quantiles:
-            q_list = []
-            for i in range(len(bins) - 1):
-                # Mask data for current bin
-                mask = (bin_data > bins[i]) & (bin_data <= bins[i + 1])
-                # Calculate quantile for masked data
-                val = data.where(mask).quantile(q, dim=dim)
-                if "quantile" in val.coords:
-                    val = val.drop_vars("quantile")
-                q_list.append(val)
-
-            # Combine bin results
-            results[f"q{q}"] = xr.concat(q_list, dim="bin")
-
-        res = xr.Dataset(results)
-        res = res.assign_coords(bin=midpoints).rename({"bin": "bin_center"})
+    levels = np.atleast_1d(quantiles).astype(float)
+    if isinstance(bins, (int, np.integer)):
+        if bins < 1:
+            raise ValueError("bins must be a positive integer")
+        finite_bins = bin_data.where(np.isfinite(bin_data))
+        limits = xr.Dataset(
+            {"lower": finite_bins.min(), "upper": finite_bins.max()}
+        ).compute()
+        bounds = [limits["lower"].item(), limits["upper"].item()]
+        if not np.isfinite(bounds).all():
+            raise ValueError("Automatic bins require finite binning values")
+        edges = np.histogram_bin_edges(bounds, bins=bins)
     else:
-        # Groupby bins for eager data
-        binned = data.groupby_bins(bin_data, bins=bins)
+        edges = np.asarray(bins, dtype=float)
+        if (
+            edges.ndim != 1
+            or edges.size < 2
+            or np.isnan(edges).any()
+            or not (edges[1:] > edges[:-1]).all()
+        ):
+            raise ValueError("Bin edges must be strictly increasing")
 
-        # For each quantile, compute and collect
-        results = {}
-        for q in quantiles:
-            res_q = binned.quantile(q, dim=dim)
-            # Drop the 'quantile' coordinate to avoid merge conflicts in Dataset
-            if "quantile" in res_q.coords:
-                res_q = res_q.drop_vars("quantile")
-            results[f"q{q}"] = res_q
+    midpoints = (edges[:-1] + edges[1:]) / 2
+    per_bin = []
+    for index, (left, right) in enumerate(zip(edges[:-1], edges[1:])):
+        above_left = bin_data >= left if index == 0 else bin_data > left
+        mask = above_left & (bin_data <= right) & np.isfinite(bin_data)
+        per_bin.append(data.where(mask).quantile(levels, dim=dim, skipna=True))
 
-        res = xr.Dataset(results)
-
-    # Final cleanup of 'quantile' variable/coord if it leaked in
-    if "quantile" in res.coords:
-        res = res.drop_vars("quantile")
-    if "quantile" in res.data_vars:
-        res = res.drop_vars("quantile")
-
-    # Convert Interval index to bin centers
-    bin_coords = [c for c in res.coords if "_bins" in str(c)]
-    if bin_coords:
-        bin_coord = bin_coords[0]
-        res = res.assign_coords({bin_coord: midpoints})
-        res = res.rename({bin_coord: "bin_center"})
-
+    binned = xr.concat(per_bin, dim=xr.IndexVariable("bin_center", midpoints))
+    res = xr.Dataset(
+        {
+            f"q{level}": binned.isel(quantile=index, drop=True)
+            for index, level in enumerate(levels)
+        }
+    )
     return _update_history(res, "Calculated binned quantiles")
 
 

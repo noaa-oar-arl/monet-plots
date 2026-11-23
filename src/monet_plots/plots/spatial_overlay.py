@@ -4,7 +4,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Optional
 
 import cartopy.crs as ccrs
+import dask
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -121,7 +123,7 @@ class SpatialOverlayPlot(SpatialPlot):
         Parameters
         ----------
         kind : str
-            Type of gridded plot: 'contourf' or 'imshow'.
+            Type of gridded plot: 'contourf', 'imshow', or 'pcolormesh'.
         vmin, vmax : float, optional
             Common min/max for the colorscale. If None, calculated from data.
         cmap : str
@@ -168,11 +170,23 @@ class SpatialOverlayPlot(SpatialPlot):
                 "Model and observation units differ; convert units before overlaying."
             )
         if options.get("norm") is None:
-            import dask
-
-            bounds = dask.compute(model.min(), model.max(), obs.min(), obs.max())
-            vmin = min(float(bounds[0]), float(bounds[2])) if vmin is None else vmin
-            vmax = max(float(bounds[1]), float(bounds[3])) if vmax is None else vmax
+            vmin = options.pop("vmin", vmin)
+            vmax = options.pop("vmax", vmax)
+            reductions = {}
+            if vmin is None or vmax is None:
+                finite_model = model.where(np.isfinite(model))
+                finite_obs = obs.where(np.isfinite(obs))
+                if vmin is None:
+                    reductions["min"] = (finite_model.min(), finite_obs.min())
+                if vmax is None:
+                    reductions["max"] = (finite_model.max(), finite_obs.max())
+                (bounds,) = dask.compute(reductions)
+                if vmin is None:
+                    vmin = float(np.fmin(*map(float, bounds["min"])))
+                if vmax is None:
+                    vmax = float(np.fmax(*map(float, bounds["max"])))
+                if not np.isfinite([vmin, vmax]).all():
+                    raise ValueError("Automatic color limits require finite data.")
             options.update(vmin=vmin, vmax=vmax)
         options.setdefault("cmap", cmap)
         if kind == "contourf":
