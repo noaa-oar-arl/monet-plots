@@ -2,7 +2,6 @@
 
 from typing import Any
 
-import cartopy.crs as ccrs
 import numpy as np
 
 from .. import tools
@@ -34,9 +33,9 @@ class WindQuiverPlot(SpatialPlot):
 
     @figure_style
     def plot(self, *, skip=None, **kwargs):
-        """Generate the wind quiver plot. Set skip to override automatic grid thinning."""
-        quiver_kwargs = self.add_features(**kwargs)
-        quiver_kwargs.setdefault("transform", ccrs.PlateCarree())
+        """Generate the wind quiver plot."""
+        quiver_kwargs = self.add_features(**{**self._plot_defaults, **kwargs})
+        quiver_kwargs.setdefault("transform", self.data_crs)
 
         lon, lat, u, v = tools.sample_wind_grid(self.ws, self.wdir, self.gridobj, skip)
         quiver_kwargs.setdefault("pivot", "middle")
@@ -48,4 +47,5 @@ class WindQuiverPlot(SpatialPlot):
             v,
             **quiver_kwargs,
         )
+        self.mappable = quiv
         return quiv

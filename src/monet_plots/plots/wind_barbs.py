@@ -2,7 +2,6 @@
 
 from typing import Any
 
-import cartopy.crs as ccrs
 import numpy as np
 
 from .. import tools
@@ -34,13 +33,13 @@ class WindBarbsPlot(SpatialPlot):
 
     @figure_style
     def plot(self, *, skip=None, **kwargs):
-        """Generate the wind barbs plot. Set skip to override automatic grid thinning."""
-        barb_kwargs = self.add_features(**kwargs)
-        barb_kwargs.setdefault("transform", ccrs.PlateCarree())
+        """Generate the wind barbs plot."""
+        barb_kwargs = self.add_features(**{**self._plot_defaults, **kwargs})
+        barb_kwargs.setdefault("transform", self.data_crs)
 
         lon, lat, u, v = tools.sample_wind_grid(self.ws, self.wdir, self.gridobj, skip)
         barb_kwargs.setdefault("length", 5)
-        self.ax.barbs(
+        self.mappable = self.ax.barbs(
             lon,
             lat,
             u,

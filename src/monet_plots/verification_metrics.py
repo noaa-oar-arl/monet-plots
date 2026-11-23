@@ -1,9 +1,9 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import monet_stats
-from monet_stats import *  # noqa: F401, F403 – re-export all public statistics
 import numpy as np
 import xarray as xr
+from monet_stats import *  # noqa: F401, F403 – re-export all public statistics
 
 try:
     import dask.array as da
@@ -287,6 +287,82 @@ def compute_bias(
     if isinstance(res, (xr.DataArray, xr.Dataset)):
         return _update_history(res, f"Calculated Mean Bias along {dim}")
     return res
+
+
+def compute_binned_quantiles(
+    data: Union[np.ndarray, xr.DataArray],
+    bin_data: Union[np.ndarray, xr.DataArray],
+    bins: Any = 10,
+    quantiles: Union[float, list[float], tuple[float, ...]] = (0.25, 0.5, 0.75),
+    dim: Optional[Union[str, list[str]]] = None,
+) -> xr.Dataset:
+    """
+    Calculates quantiles of data binned by another variable (e.g., altitude).
+
+    Supports lazy evaluation for Dask-backed Xarray objects. Bins include their
+    right edge, and the first bin also includes its left edge. Empty bins
+    return NaN quantiles.
+
+    Parameters
+    ----------
+    data : Union[np.ndarray, xr.DataArray]
+        The data to calculate quantiles for.
+    bin_data : Union[np.ndarray, xr.DataArray]
+        The data to use for binning (e.g., altitude).
+    bins : Any, optional
+        Number of bins or bin edges, by default 10.
+    quantiles : Union[float, list[float]], optional
+        The quantiles to calculate, by default [0.25, 0.5, 0.75].
+    dim : str or list of str, optional
+        The dimension(s) to reduce. If None, all dimensions are reduced.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset containing binned quantiles.
+    """
+    if not isinstance(data, xr.DataArray):
+        data = xr.DataArray(data)
+    if not isinstance(bin_data, xr.DataArray):
+        bin_data = xr.DataArray(bin_data)
+
+    levels = np.atleast_1d(quantiles).astype(float)
+    if isinstance(bins, (int, np.integer)):
+        if bins < 1:
+            raise ValueError("bins must be a positive integer")
+        finite_bins = bin_data.where(np.isfinite(bin_data))
+        limits = xr.Dataset(
+            {"lower": finite_bins.min(), "upper": finite_bins.max()}
+        ).compute()
+        bounds = [limits["lower"].item(), limits["upper"].item()]
+        if not np.isfinite(bounds).all():
+            raise ValueError("Automatic bins require finite binning values")
+        edges = np.histogram_bin_edges(bounds, bins=bins)
+    else:
+        edges = np.asarray(bins, dtype=float)
+        if (
+            edges.ndim != 1
+            or edges.size < 2
+            or np.isnan(edges).any()
+            or not (edges[1:] > edges[:-1]).all()
+        ):
+            raise ValueError("Bin edges must be strictly increasing")
+
+    midpoints = (edges[:-1] + edges[1:]) / 2
+    per_bin = []
+    for index, (left, right) in enumerate(zip(edges[:-1], edges[1:])):
+        above_left = bin_data >= left if index == 0 else bin_data > left
+        mask = above_left & (bin_data <= right) & np.isfinite(bin_data)
+        per_bin.append(data.where(mask).quantile(levels, dim=dim, skipna=True))
+
+    binned = xr.concat(per_bin, dim=xr.IndexVariable("bin_center", midpoints))
+    res = xr.Dataset(
+        {
+            f"q{level}": binned.isel(quantile=index, drop=True)
+            for index, level in enumerate(levels)
+        }
+    )
+    return _update_history(res, "Calculated binned quantiles")
 
 
 def compute_binned_bias(

@@ -8,10 +8,11 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import cbook
 from matplotlib.backends.backend_agg import RendererAgg
 
-from ..style import FIGURE_STYLES, set_style
+from ..style import FIGURE_STYLES, _scoped_plot_method, set_style
 
 if TYPE_CHECKING:
     import matplotlib.axes
@@ -69,6 +70,25 @@ class BasePlot:
     and provides a common interface for saving and closing plots.
     """
 
+    def __init_subclass__(cls, **kwargs):
+        """Keep styles local throughout construction, rendering and export."""
+        super().__init_subclass__(**kwargs)
+        for name, method in list(cls.__dict__.items()):
+            if callable(method) and (
+                name == "__init__"
+                or name.startswith("plot")
+                or name
+                in {
+                    "save",
+                    "add_features",
+                    "map_monet",
+                    "map_dataframe",
+                    "add_map_features",
+                }
+            ):
+                setattr(cls, name, _scoped_plot_method(method))
+
+    @_scoped_plot_method
     def __init__(self, fig=None, ax=None, style: str | None = "wiley", **kwargs):
         """Initializes the plot with a consistent style.
 
@@ -82,6 +102,11 @@ class BasePlot:
                 If None, no style is applied. Defaults to 'wiley'.
             **kwargs: Additional keyword arguments for `plt.subplots`.
         """
+        self._style = style
+        self.mappable = None
+        self.colorbars = []
+        if ax is not None and fig is not None and ax.figure is not fig:
+            raise ValueError("fig must be the figure that owns ax.")
         self._figure_style = FIGURE_STYLES.get(style)
         if style and self._figure_style is None:
             set_style(style)
@@ -99,6 +124,17 @@ class BasePlot:
             with plt.rc_context(self._figure_style):
                 self.fig, self.ax = plt.subplots(**kwargs)
 
+        self.axes = np.asarray([[self.ax]], dtype=object)
+
+    @property
+    def artists(self):
+        """Rendered scalar artists and any observation overlays."""
+        primary = getattr(self, "mappables", None)
+        if primary is None:
+            primary = [] if self.mappable is None else [self.mappable]
+        return [*primary, *getattr(self, "overlays", [])]
+
+    @_scoped_plot_method
     @figure_style
     def save(self, filename, **kwargs):
         """Save the plot and wrap panel titles to their axes widths.
@@ -323,6 +359,8 @@ class BasePlot:
         if ax is None:
             ax = self.ax
 
+        if loc not in {"right", "left", "top", "bottom"}:
+            raise ValueError("loc must be right, left, top or bottom.")
         orientation = "vertical" if loc in ["right", "left"] else "horizontal"
 
         # Determine anchor and position based on location
@@ -353,5 +391,5 @@ class BasePlot:
 
         if label:
             cb.set_label(label)
-
+        self.colorbars.append(cb)
         return cb

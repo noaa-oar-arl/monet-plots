@@ -1,8 +1,16 @@
-# Performance Optimization Guide
+# Performance
 
-Welcome to the MONET Plots performance optimization guide! This comprehensive resource will help you create efficient, fast, and scalable visualizations, especially when working with large datasets and complex plotting workflows.
+For measured rendering time, native memory use, and large NumPy/Dask datasets,
+see [Large-dataset measurements](large-datasets.md). The repository includes an
+isolated-process benchmark harness and a weekly/manual performance workflow.
 
-## Overview
+## Practical starting points
+
+- Select the required times, levels and region before plotting.
+- Use meaningful explicit color limits to avoid global scale reductions.
+- Use images for regular grids and meshes for irregular or curvilinear grids.
+- Aggregate explicitly when the source has many more cells than the display has pixels.
+- Close figures and release plot objects after exporting.
 
 MONET Plots is designed with performance in mind, but large datasets and complex visualizations can still present challenges. This guide provides strategies and techniques to optimize your plotting performance.
 
@@ -35,36 +43,15 @@ Save intermediate results to avoid recomputation.
 ## Quick Start: Basic Optimization
 
 ```python
-import numpy as np
-from monet_plots import SpatialPlot
+import monet_plots as mp
 
-# Before: Full resolution
-large_data = np.random.random((1000, 1500))  # 1.5M points
-plot = SpatialPlot()
-plot.plot(large_data)  # Slow!
-
-# After: Downsampled
-small_data = large_data[::10, ::10]  # 15K points
-plot = SpatialPlot()
-plot.plot(small_data)  # Much faster!
+# field is an xarray DataArray on lat/lon dimensions.
+# Select aggregation and weighting appropriate to your scientific question.
+coarse = field.coarsen(lat=4, lon=4, boundary="trim").mean()
+result = mp.spatial(coarse, vmin=0, vmax=80)
+result.save("overview.png")
+result.close()
 ```
 
-## Performance Metrics
-
-Monitor these key performance indicators:
-
-- **Generation Time**: Time to create the plot
-- **Memory Usage**: RAM consumed during plotting
-- **File Size**: Output file size
-- **Rendering Speed**: Time to display or save
-- **Interactive Responsiveness**: Performance in interactive environments
-
----
-
-## Navigation
-
-- [Basic Optimization](./basic-optimization.md) - Quick performance wins
-- [Memory Management](./memory-management) - Handling large datasets
-- [Rendering Optimization](./rendering-optimization) - Fast plot generation
-- [Workflow Optimization](./workflow-optimization) - Efficient multi-plot workflows
-- [Benchmarking](./benchmarking) - Performance measurement and analysis
+For common plotting options, see [Spatial comparisons](../spatial-comparisons.md)
+and [Observation/model/bias maps](../model-evaluation.md).

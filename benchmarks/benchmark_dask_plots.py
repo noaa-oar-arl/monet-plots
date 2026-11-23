@@ -3,8 +3,8 @@
 import argparse
 import json
 import resource
-from types import SimpleNamespace
 from time import perf_counter
+from types import SimpleNamespace
 
 import dask
 import dask.array as da

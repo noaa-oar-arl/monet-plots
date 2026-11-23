@@ -1,15 +1,15 @@
 """Check eager and Dask-backed inputs at public static plot entry points."""
 
 import argparse
+import json
+import os
+import sys
 from contextlib import ExitStack
 from functools import wraps
 from importlib import import_module
 from inspect import Parameter, signature
-import json
-import os
 from pathlib import Path
 from pkgutil import iter_modules
-import sys
 from unittest.mock import patch
 
 if __package__:
@@ -25,6 +25,13 @@ INPUT_NAMES = {
     "df",
     "da",
     "modelvar",
+    "model_data",
+    "observations",
+    "model",
+    "pressure",
+    "temperature",
+    "dewpoint",
+    "obs_data",
     "metrics_data",
     "spread",
     "skill",

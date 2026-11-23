@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing as t
 
 import pandas as pd
+
 from ..plot_utils import set_concise_time_axis, to_dataframe
 from .base import BasePlot, figure_style
 

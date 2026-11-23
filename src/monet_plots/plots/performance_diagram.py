@@ -3,8 +3,8 @@ from typing import Any, List, Optional
 import numpy as np
 
 from ..plot_utils import to_dataframe, validate_dataframe
-from ..verification_metrics import compute_pod, compute_success_ratio
 from ..style import CB_MARKERS
+from ..verification_metrics import compute_pod, compute_success_ratio
 from .base import BasePlot, figure_style
 
 

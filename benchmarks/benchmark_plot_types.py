@@ -56,6 +56,7 @@ GALLERY = {
     "SpatialPlot": "spatial",
     "SpreadSkillPlot": "ensemble",
     "TaylorDiagramPlot": "taylor_diagram",
+    "SkewTPlot": "skewt",
     "TimeSeriesPlot": "timeseries",
     "TrajectoryPlot": "trajectory",
     "UpperAir": "upper_air",
@@ -77,6 +78,10 @@ FIXTURES = {
     "TimeSeriesStatsPlot": "240 paired observations in 10 daily bins",
     "VerticalBoxPlot": "100 values in 5 altitude bins",
     "VerticalSlice": "50 × 50 grid",
+    "VerticalProfilePlot": "100 paired observations",
+    "SpatialMeshPlot": "40 × 50 cells",
+    "SpatialComparisonPlot": "three 40 × 50 panels",
+    "SpatialOverlayPlot": "40 × 50 grid and 30 observations",
 }
 
 MAP_HELPERS = {
@@ -90,6 +95,8 @@ MAP_HELPERS = {
 
 EXCLUSIONS = {
     "BasePlot": "plot infrastructure with no plot method",
+    "PlotLayout": "layout infrastructure composed from plot objects",
+    "SkewTAxes": "Matplotlib projection infrastructure",
     "SpScatterBiasPlot": "listed in __all__ but no such implementation or alias",
     "categorical_timeseries": "placeholder that raises NotImplementedError",
 }
@@ -123,11 +130,19 @@ def draw_fixture(name):
     import xarray as xr
 
     from monet_plots import cartopy_utils
-    from monet_plots.plots.profile import StickPlot, VerticalBoxPlot, VerticalSlice
+    from monet_plots.plots.profile import (
+        StickPlot,
+        VerticalBoxPlot,
+        VerticalProfilePlot,
+        VerticalSlice,
+    )
     from monet_plots.plots.radar import RadarPlot
     from monet_plots.plots.scorecard import ScorecardPlot
     from monet_plots.plots.spatial import SpatialTrack
+    from monet_plots.plots.spatial_comparison import SpatialComparisonPlot
     from monet_plots.plots.spatial_imshow import SpatialImshowPlot
+    from monet_plots.plots.spatial_mesh import SpatialMeshPlot
+    from monet_plots.plots.spatial_overlay import SpatialOverlayPlot
     from monet_plots.plots.temporal_scorecard import TemporalScorecardPlot
     from monet_plots.plots.timeseries import TimeSeriesErrorBarPlot, TimeSeriesStatsPlot
     from monet_plots.taylordiagram import TaylorDiagram
@@ -165,6 +180,9 @@ def draw_fixture(name):
             ScorecardPlot(style="journal").plot(data, "column", "region", "score")
     elif name in {
         "SpatialImshowPlot",
+        "SpatialMeshPlot",
+        "SpatialComparisonPlot",
+        "SpatialOverlayPlot",
         "plot_quick_contourf",
         "plot_quick_imshow",
         "plot_quick_map",
@@ -183,6 +201,19 @@ def draw_fixture(name):
                 variables={"LAT": yy[None, None], "LON": xx[None, None]}
             )
             SpatialImshowPlot(data.values, grid, coastlines=False).plot()
+        elif name == "SpatialMeshPlot":
+            SpatialMeshPlot(data, coastlines=False).plot()
+        elif name == "SpatialOverlayPlot":
+            obs = pd.DataFrame(
+                {
+                    "latitude": np.linspace(30, 45, 30),
+                    "longitude": np.linspace(-120, -75, 30),
+                    "obs": rng.normal(size=30),
+                }
+            )
+            SpatialOverlayPlot(data, obs, obs_var="obs", coastlines=False).plot()
+        elif name == "SpatialComparisonPlot":
+            SpatialComparisonPlot(data, data + 0.5, coastlines=False).plot()
         elif name == "facet_time_map":
             facets = xr.concat(
                 [data + t for t in range(4)],
@@ -229,6 +260,15 @@ def draw_fixture(name):
             )
         else:
             TimeSeriesErrorBarPlot(data, x="time", y="obs", freq="D").plot()
+    elif name == "VerticalProfilePlot":
+        data = pd.DataFrame(
+            {
+                "altitude": np.linspace(0, 10, 100),
+                "obs": rng.normal(size=100),
+                "model": rng.normal(size=100),
+            }
+        )
+        VerticalProfilePlot(data, "obs", "model").plot()
     elif name == "VerticalBoxPlot":
         VerticalBoxPlot(
             rng.normal(size=100), np.linspace(0, 10, 100), range(0, 11, 2)
