@@ -58,7 +58,12 @@ plot = SpatialOverlayPlot(
     coastlines=True,
     extent=[-126, -69, 24, 51],
 )
-plot.plot(cmap="viridis", vmin=20, vmax=80, s=100, edgecolor="white", linewidth=1.5)
+plot.plot(
+    cmap="viridis",
+    vmin=20,
+    vmax=80,
+    obs_kws={"s": 100, "edgecolors": "white", "linewidths": 1.5},
+)
 
 # 4. Add title
 plot.ax.set_title("Model Ozone Field Overlayed with Station Observations")

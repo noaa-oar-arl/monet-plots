@@ -214,3 +214,69 @@ def test_diurnal_error_pandas_fallback_vectorized():
     plot = DiurnalErrorPlot(df, obs_col="obs", mod_col="mod")
     assert isinstance(plot.aggregated, xr.DataArray)
     assert plot.aggregated.shape == (1, 24)
+
+
+def test_diurnal_bias_uses_symmetric_scale_and_compact_hour_labels():
+    time = pd.date_range("2025-01-01", periods=48, freq="h")
+    frame = pd.DataFrame(
+        {"time": time, "obs": 0, "model": np.tile(np.arange(24) - 3, 2)}
+    )
+    plot = DiurnalErrorPlot(frame, "obs", "model", style="journal")
+    try:
+        ax = plot.plot(reference_label="Station observations")
+        assert ax.collections[0].norm.vmin == -20
+        assert ax.collections[0].norm.vmax == 20
+        assert len(ax.get_xticklabels()) < 10
+        assert "Station observations" in ax.collections[0].colorbar.ax.get_ylabel()
+    finally:
+        plot.close()
+
+
+def test_chunked_custom_diurnal_labels_keep_metric_lazy():
+    times = pd.date_range("2025-01-01", periods=48, freq="h")
+    data = xr.Dataset(
+        {
+            "obs": ("time", np.zeros(48)),
+            "model": ("time", np.arange(48, dtype=float)),
+            "region": ("time", ["west"] * 24 + ["east"] * 24),
+        },
+        coords={"time": times},
+    )
+    eager = DiurnalErrorPlot(data, "obs", "model", second_dim="region")
+    lazy = DiurnalErrorPlot(
+        data.chunk({"time": 12}), "obs", "model", second_dim="region"
+    )
+    try:
+        assert lazy.aggregated.chunks is not None
+        xr.testing.assert_allclose(lazy.aggregated.compute(), eager.aggregated)
+    finally:
+        eager.close()
+        lazy.close()
+
+
+def test_diurnal_heatmap_draws_from_array_without_pandas_conversion(monkeypatch):
+    time = pd.date_range("2025-01-01", periods=24, freq="h")
+    data = xr.Dataset(
+        {"obs": ("time", np.zeros(24)), "model": ("time", np.arange(24))},
+        coords={"time": time},
+    )
+    plot = DiurnalErrorPlot(data, "obs", "model")
+
+    def reject_conversion(*args, **kwargs):
+        pytest.fail(
+            "The aggregated heatmap should be drawn directly from xarray values"
+        )
+
+    monkeypatch.setattr(xr.DataArray, "to_pandas", reject_conversion)
+    try:
+        ax = plot.plot(cbar=False, xticklabels=6)
+        np.testing.assert_array_equal(ax.collections[0].get_array(), [np.arange(24)])
+        assert [label.get_text() for label in ax.get_xticklabels()] == [
+            "0",
+            "6",
+            "12",
+            "18",
+        ]
+        assert ax.get_ylim() == (1, 0)
+    finally:
+        plot.close()

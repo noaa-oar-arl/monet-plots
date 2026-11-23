@@ -23,7 +23,6 @@ classifiers = [
 ]
 dependencies = [
     "matplotlib",
-    "seaborn",
     "pandas",
     "cartopy",
     "xarray",
@@ -50,6 +49,7 @@ interactive = [
     "datashader",
 ]
 test = [
+    "dask[dataframe]",
     "pytest",
     "pytest-xdist",
     "pytest-cov",

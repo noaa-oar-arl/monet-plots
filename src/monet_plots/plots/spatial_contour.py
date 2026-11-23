@@ -201,6 +201,7 @@ class SpatialContourPlot(SpatialPlot):
             field = self.modelvar
         else:
             field = grid_data(self.modelvar, self.lon_coord, self.lat_coord)
+            field = self._spatial_render_data(field, self.lon_coord, self.lat_coord)
             longitude = field[self.lon_coord]
             latitude = field[self.lat_coord]
         options = self.add_features(**options)

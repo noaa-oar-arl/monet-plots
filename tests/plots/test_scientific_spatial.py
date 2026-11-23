@@ -432,7 +432,7 @@ def test_mesh_computes_each_dask_panel_once(field):
     evaluations = []
     with Callback(start=lambda graph: evaluations.append(graph)):
         result = mp.spatial(data, col="model", vmin=0, vmax=250, coastlines=False)
-    assert len(evaluations) == 3
+    assert len(evaluations) == 1
     # Repeated canvas draws reuse concrete artists rather than rerunning data graphs.
     with Callback(
         start=lambda graph: pytest.fail("Unexpected recomputation during draw")

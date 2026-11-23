@@ -113,6 +113,7 @@ class SpatialOverlayPlot(SpatialPlot):
         vmax: Optional[float] = None,
         cmap: str = "viridis",
         nlevels: int = 20,
+        obs_kws: Optional[dict] = None,
         **kwargs: Any,
     ) -> Axes:
         """Generate the spatial overlay plot.
@@ -127,6 +128,8 @@ class SpatialOverlayPlot(SpatialPlot):
             Colormap to use.
         nlevels : int
             Number of levels for contourf.
+        obs_kws : dict, optional
+            Matplotlib scatter options for observation markers.
         **kwargs : Any
             Additional arguments for the gridded plot.
         """
@@ -187,16 +190,16 @@ class SpatialOverlayPlot(SpatialPlot):
         renderer.plot(**options, add_colorbar=False)
         self.mappable = renderer.mappable
         lon_o, lat_o = identify_coords(self.obs_data)
+        marker_options = {"edgecolors": "k", "s": 30, "label": "Observations"}
+        marker_options.update(obs_kws or {})
         self.observation_artist = self.ax.scatter(
             self.obs_data[lon_o],
             self.obs_data[lat_o],
             c=obs,
             norm=self.mappable.norm,
             cmap=self.mappable.cmap,
-            edgecolors="k",
-            s=30,
             transform=obs_crs,
-            label="Observations",
+            **marker_options,
         )
         if add_colorbar:
             self.add_colorbar(

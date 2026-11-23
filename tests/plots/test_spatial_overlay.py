@@ -30,3 +30,18 @@ def test_spatial_overlay_plot():
     # Check for contourf (collection) and scatter (collection)
     assert len(ax.collections) >= 2
     plt.close(plot.fig)
+
+
+def test_overlay_marker_options():
+    model = xr.DataArray(
+        np.ones((2, 2)),
+        dims=("lat", "lon"),
+        coords={"lat": [30, 40], "lon": [-100, -90]},
+    )
+    obs = pd.DataFrame({"latitude": [35], "longitude": [-95], "value": [1]})
+    plot = SpatialOverlayPlot(model, obs, obs_var="value", coastlines=False)
+    try:
+        plot.plot(obs_kws={"s": 100, "edgecolors": "white"})
+        np.testing.assert_allclose(plot.observation_artist.get_sizes(), [100])
+    finally:
+        plot.close()

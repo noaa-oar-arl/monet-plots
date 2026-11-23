@@ -4,6 +4,7 @@ import typing as t
 from typing import Any, Union
 
 import numpy as np
+from dask import compute, is_dask_collection
 from matplotlib import pyplot as plt
 
 from .. import tools, verification_metrics
@@ -329,7 +330,10 @@ class StickPlot(BasePlot):
                 self.fig = plt.figure()
             self.ax = self.fig.add_subplot()
         configure_vertical_axis(self.ax, self.y, self.vertical_axis, self.yscale)
-        return self.ax.quiver(self.x, self.y, self.u, self.v, **kwargs)
+        vectors = (self.x, self.y, self.u, self.v)
+        if any(is_dask_collection(value) for value in vectors):
+            vectors = compute(*vectors)
+        return self.ax.quiver(*vectors, **kwargs)
 
 
 class VerticalBoxPlot(BasePlot):

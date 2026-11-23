@@ -7,7 +7,6 @@ This document provides deployment and maintenance procedures for the MONET Plots
 - Python 3.11+
 - Dependencies (as defined in pyproject.toml):
   - matplotlib
-  - seaborn
   - pandas
  - cartopy
   - xarray

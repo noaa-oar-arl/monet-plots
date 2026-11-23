@@ -5,6 +5,8 @@ from typing import Any
 import numpy as np
 
 from .. import tools
+from ..plot_utils import is_lazy
+from .base import figure_style
 from .spatial import SpatialPlot
 
 
@@ -25,25 +27,23 @@ class WindBarbsPlot(SpatialPlot):
             **kwargs: Keyword arguments passed to SpatialPlot for projection and features.
         """
         super().__init__(*args, **kwargs)
-        self.ws = np.asarray(ws)
-        self.wdir = np.asarray(wdir)
+        self.ws = getattr(ws, "data", ws) if is_lazy(ws) else np.asarray(ws)
+        self.wdir = getattr(wdir, "data", wdir) if is_lazy(wdir) else np.asarray(wdir)
         self.gridobj = gridobj
 
-    def plot(self, **kwargs):
+    @figure_style
+    def plot(self, *, skip=None, **kwargs):
         """Generate the wind barbs plot."""
         barb_kwargs = self.add_features(**{**self._plot_defaults, **kwargs})
         barb_kwargs.setdefault("transform", self.data_crs)
 
-        lat = self.gridobj.variables["LAT"][0, 0, :, :].squeeze()
-        lon = self.gridobj.variables["LON"][0, 0, :, :].squeeze()
-        u, v = tools.wsdir2uv(self.ws, self.wdir)
-        # Subsample the data for clarity
-        skip = barb_kwargs.pop("skip", 15)
+        lon, lat, u, v = tools.sample_wind_grid(self.ws, self.wdir, self.gridobj, skip)
+        barb_kwargs.setdefault("length", 5)
         self.mappable = self.ax.barbs(
-            lon[::skip, ::skip],
-            lat[::skip, ::skip],
-            u[::skip, ::skip],
-            v[::skip, ::skip],
+            lon,
+            lat,
+            u,
+            v,
             **barb_kwargs,
         )
         return self.ax

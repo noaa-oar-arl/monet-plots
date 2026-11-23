@@ -6,10 +6,16 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import xarray as xr
 
-from ..plot_utils import _update_history, get_plot_kwargs, normalize_data
-from .base import BasePlot
+from ..plot_utils import (
+    _update_history,
+    get_plot_kwargs,
+    normalize_data,
+    set_concise_time_axis,
+)
+from .base import BasePlot, figure_style
 from .vertical import configure_vertical_axis
 
 
@@ -55,6 +61,7 @@ class CurtainPlot(BasePlot):
 
         _update_history(self.data, "Initialized monet-plots.CurtainPlot")
 
+    @figure_style
     def plot(
         self,
         kind: str = "contourf",
@@ -187,6 +194,16 @@ class CurtainPlot(BasePlot):
                 )
             else:
                 self.add_colorbar(mappable, ax=ax1, **cb_kwargs)
+
+        time_index = (
+            da[self.x].to_index()
+            if self.x in da.coords and da[self.x].ndim == 1
+            else None
+        )
+        if isinstance(time_index, pd.DatetimeIndex):
+            set_concise_time_axis(ax1, time_index.tz)
+            if time_index.tz:
+                ax1.set_xlabel(f"{ax1.get_xlabel()} ({time_index.tz})")
 
         if two_subplot:
             ax1.set_title("Model with Obs Overlay")

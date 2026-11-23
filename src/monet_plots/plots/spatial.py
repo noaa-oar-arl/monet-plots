@@ -371,6 +371,27 @@ class SpatialPlot(BasePlot):
         """Sort independent grid axes while preserving station and curvilinear grids."""
         return ordered_grid(data, lon_name, lat_name)
 
+    @staticmethod
+    def _spatial_render_data(
+        data: xr.DataArray, *coordinate_names: str
+    ) -> xr.DataArray:
+        """Materialize only the field and geolocation required by a static renderer."""
+        coordinates = {name: data[name] for name in coordinate_names}
+        if data.chunks is None and all(
+            coord.chunks is None for coord in coordinates.values()
+        ):
+            return data
+
+        subset = data.reset_coords(drop=True)
+        subset = subset.assign_coords(
+            {
+                name: coord.variable
+                for name, coord in coordinates.items()
+                if name not in subset.coords
+            }
+        )
+        return compute(subset)
+
     def _get_extent_from_data(
         self,
         data: xr.DataArray | xr.Dataset,
@@ -558,19 +579,23 @@ class SpatialTrack(SpatialPlot):
         kwargs = {**self._plot_defaults, **kwargs}
         add_colorbar = kwargs.pop("add_colorbar", False)
         cbar_kwargs = kwargs.pop("cbar_kwargs", {})
+        render_data = self._spatial_render_data(
+            self.data, self.lon_coord, self.lat_coord
+        )
+        if "extent" not in kwargs:
+            kwargs["extent"] = self._get_extent_from_data(
+                render_data, self.lon_coord, self.lat_coord, buffer=0.1
+            )
         # Add features and get remaining kwargs for scatter
         scatter_kwargs = self.add_features(**kwargs)
 
         scatter_kwargs.setdefault("transform", self.data_crs)
 
-        # For coordinates and values, we pass the xarray objects directly.
-        # This allows Matplotlib to handle the conversion, maintaining
-        # compatibility with existing tests that check for lazy objects.
-        longitude = self.data[self.lon_coord]
-        latitude = self.data[self.lat_coord]
+        longitude = render_data[self.lon_coord]
+        latitude = render_data[self.lat_coord]
 
         # Use get_plot_kwargs to handle (cmap, norm) tuples
-        final_kwargs = get_plot_kwargs(c=self.data, **scatter_kwargs)
+        final_kwargs = get_plot_kwargs(c=render_data, **scatter_kwargs)
 
         sc = self.ax.scatter(longitude, latitude, **final_kwargs)
         self.mappable = sc

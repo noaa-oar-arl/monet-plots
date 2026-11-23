@@ -8,6 +8,7 @@ import xarray as xr
 from ..colorbars import get_discrete_scale
 from ..geo import identify_coords, validate_data_crs
 from ..plot_utils import _update_history, get_plot_kwargs, normalize_data
+from .base import figure_style
 from .spatial import SpatialPlot
 
 if TYPE_CHECKING:
@@ -112,6 +113,7 @@ class SpatialBiasScatterPlot(SpatialPlot):
 
         _update_history(self.data, "Initialized monet-plots.SpatialBiasScatterPlot")
 
+    @figure_style
     def plot(self, **kwargs: Any) -> matplotlib.axes.Axes:
         """Plot paired biases with optional shared normalization and colorbar.
 
@@ -124,16 +126,26 @@ class SpatialBiasScatterPlot(SpatialPlot):
         options = self.add_features(**options)
         diff = self.data[self.col2] - self.data[self.col1]
         if isinstance(diff, xr.DataArray):
+            concrete = xr.Dataset(
+                {
+                    "diff": diff,
+                    "longitudes": self.data[self.lon_coord],
+                    "latitudes": self.data[self.lat_coord],
+                }
+            ).compute()
             diff, lon, lat = xr.broadcast(
-                diff, self.data[self.lon_coord], self.data[self.lat_coord]
+                concrete["diff"], concrete["longitudes"], concrete["latitudes"]
             )
-            concrete = xr.Dataset({"diff": diff, "lon": lon, "lat": lat}).compute()
-            values, longitude, latitude = (
-                concrete[k].values.ravel() for k in ("diff", "lon", "lat")
-            )
+            values = diff.values.ravel()
+            longitude = lon.transpose(*diff.dims).values.ravel()
+            latitude = lat.transpose(*diff.dims).values.ravel()
         else:
-            values = diff.to_numpy()
-            longitude, latitude = self.data[self.lon_coord], self.data[self.lat_coord]
+            values = diff.to_numpy(dtype=float, na_value=np.nan)
+            longitude = self.data[self.lon_coord].to_numpy(dtype=float, na_value=np.nan)
+            latitude = self.data[self.lat_coord].to_numpy(dtype=float, na_value=np.nan)
+        valid = np.isfinite(values)
+        missing_longitude, missing_latitude = longitude[~valid], latitude[~valid]
+        values, longitude, latitude = values[valid], longitude[valid], latitude[valid]
         finite = np.asarray(values)[np.isfinite(values)]
         top = float(np.quantile(np.abs(finite), 0.95)) if finite.size else 1.0
         top = top or 1.0
@@ -142,14 +154,18 @@ class SpatialBiasScatterPlot(SpatialPlot):
         if norm is None:
             vmin = options.pop("vmin", self.vmin)
             vmax = options.pop("vmax", self.vmax)
+            lower, upper = -top if vmin is None else vmin, top if vmax is None else vmax
             cmap, norm = get_discrete_scale(
                 values,
                 cmap=cmap,
                 n_levels=self.ncolors,
-                vmin=-top if vmin is None else vmin,
-                vmax=top if vmax is None else vmax,
+                vmin=lower,
+                vmax=upper,
             )
-        options.setdefault("s", np.minimum(np.abs(values) / top * 100 * self.fact, 300))
+            norm.vmin, norm.vmax = lower, upper
+        options.setdefault(
+            "s", np.clip(np.abs(values) / top * 100 * self.fact, 12, 300)
+        )
         options.setdefault("transform", self.data_crs)
         if not {"edgecolors", "edgecolor", "ec"} & options.keys():
             options["edgecolors"] = "k"
@@ -161,6 +177,15 @@ class SpatialBiasScatterPlot(SpatialPlot):
             c=values,
             **get_plot_kwargs(cmap=cmap, norm=norm, **options),
         )
+        if missing_longitude.size:
+            self.ax.scatter(
+                missing_longitude,
+                missing_latitude,
+                marker="x",
+                color="0.35",
+                transform=self.data_crs,
+                label="Missing bias",
+            )
         if add_colorbar:
             units = self.data.attrs.get("units", "")
             label = f"Bias ({units})" if units else "Bias"

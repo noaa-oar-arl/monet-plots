@@ -246,9 +246,40 @@ def test_spatialtrack_plot_is_lazy_with_dask(clear_figures):
 
         # Ensure 'c' is an xarray.DataArray wrapping a dask array
         assert isinstance(c_arg, xr.DataArray), "The 'c' argument is not a DataArray."
-        assert isinstance(c_arg.data, dask_array.Array), (
-            "The underlying data is not a dask array."
-        )
+        assert isinstance(track_plot.data.data, dask_array.Array)
+        assert isinstance(c_arg.data, np.ndarray)
+
+
+@pytest.mark.parametrize("explicit_extent", [False, True])
+def test_spatialtrack_batches_render_data(clear_figures, explicit_extent):
+    """Materialize the plot inputs once and preserve the source and rendered extent."""
+    from dask.callbacks import Callback
+
+    data = xr.DataArray(
+        np.linspace(0, 100, 20),
+        dims="time",
+        coords={
+            "lon": ("time", np.linspace(-120, -80, 20)),
+            "lat": ("time", np.linspace(30, 45, 20)),
+        },
+        name="O3_concentration",
+        attrs={"history": "Created for test"},
+    )
+    extent = (-125, -75, 27, 48)
+    options = {"extent": extent} if explicit_extent else {}
+    eager_plot = SpatialTrack(data.copy(), coastlines=False)
+    eager_artist = eager_plot.plot(coastlines=False, **options)
+    runs = []
+    with Callback(start=lambda graph: runs.append(len(graph))):
+        lazy_plot = SpatialTrack(data.chunk({"time": 5}), coastlines=False)
+        assert not runs
+        artist = lazy_plot.plot(coastlines=False, **options)
+    assert len(runs) == 1
+    assert lazy_plot.data.chunks is not None
+    assert "Created for test" in lazy_plot.data.attrs["history"]
+    np.testing.assert_allclose(artist.get_offsets(), eager_artist.get_offsets())
+    np.testing.assert_allclose(artist.get_array(), eager_artist.get_array())
+    np.testing.assert_allclose(lazy_plot.ax.get_extent(), eager_plot.ax.get_extent())
 
 
 def test_spatial_plot_coastlines_default():

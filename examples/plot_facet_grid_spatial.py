@@ -21,7 +21,6 @@ when models diverge in their spatial predictions.
     the maps in different rows and columns.
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -65,10 +64,7 @@ grid.map_monet(
     label="Temperature (C)",
 )
 
-# 4. Final adjustments
-plt.tight_layout()
-
-# 5. Save the figure
+# 4. Save the figure
 grid.save("facet_grid_spatial_plot.png", dpi=300)
 
 print("Generated 'facet_grid_spatial_plot.png'")

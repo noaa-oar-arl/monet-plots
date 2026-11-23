@@ -24,6 +24,7 @@ from .plots.spatial_contour import SpatialContourPlot
 from .plots.spatial_imshow import SpatialImshowPlot
 from .plots.spatial_mesh import SpatialMeshPlot
 from .plots.taylor_diagram import TaylorDiagramPlot
+from .plots.temporal_scorecard import TemporalScorecardPlot
 from .plots.timeseries import TimeSeriesPlot
 from .plots.upper_air import UpperAir
 from .plots.wind_barbs import WindBarbsPlot
@@ -58,6 +59,7 @@ __all__ = [
     "RankHistogramPlot",
     "BrierScoreDecompositionPlot",
     "ScorecardPlot",
+    "TemporalScorecardPlot",
     "RelativeEconomicValuePlot",
     "ConditionalBiasPlot",
     "SpreadSkillPlot",
