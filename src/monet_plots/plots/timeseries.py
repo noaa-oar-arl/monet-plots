@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import xarray as xr
 
-from ..plot_utils import normalize_data
-from .base import BasePlot
+from ..plot_utils import compute, normalize_data, set_concise_time_axis
+from .base import BasePlot, figure_style
 
 if TYPE_CHECKING:
     import matplotlib.axes
@@ -67,6 +67,7 @@ class TimeSeriesPlot(BasePlot):
         self.ylabel = ylabel
         self.label = label
 
+    @figure_style
     def plot(self, **kwargs: Any) -> plt.Axes:
         """
         Generate the timeseries plot.
@@ -117,39 +118,29 @@ class TimeSeriesPlot(BasePlot):
         --------
         >>> plot._plot_dataframe()
         """
-        df = self.data.copy()
-        df.index = df[self.x]
-        # Keep only numeric columns for grouping, but make sure self.y is there
-        df = df.reset_index(drop=True)
-        # We need to preserve self.x for grouping if it's not the index
-        m = self.data.groupby(self.x).mean(numeric_only=True)
-        e = self.data.groupby(self.x).std(numeric_only=True)
+        summary = self.data.groupby(self.x)[self.y].agg(["mean", "std"])
+        times = summary.index
+        mean = summary["mean"].to_numpy(dtype=float, na_value=float("nan"))
+        spread = summary["std"].to_numpy(dtype=float, na_value=float("nan"))
 
         variable = self.y
-        unit = "None"
-        if "units" in self.data.columns:
-            unit = str(self.data["units"].iloc[0])
+        units = self.data["units"].dropna().unique() if "units" in self.data else []
+        unit = units[0] if len(units) == 1 else self.data.attrs.get("units")
+        plot_label = self.label if self.label is not None else self.y
 
-        upper = m[self.y] + e[self.y]
-        lower = m[self.y] - e[self.y]
-        # lower.loc[lower < 0] = 0 # Not always desired for all variables
-        lower_vals = lower.values
-        upper_vals = upper.values
-
-        if self.label is not None:
-            plot_label = self.label
-        else:
-            plot_label = self.y
-
-        m[self.y].plot(ax=self.ax, label=plot_label, **self.plotargs)
-        self.ax.fill_between(m.index, lower_vals, upper_vals, **self.fillargs)
+        self.ax.plot(times, mean, label=plot_label, **self.plotargs)
+        self.ax.fill_between(
+            times, mean - spread, mean + spread, **self._spread_options()
+        )
+        if isinstance(times, pd.DatetimeIndex):
+            set_concise_time_axis(self.ax, times.tz)
 
         if self.ylabel is None:
-            self.ax.set_ylabel(f"{variable} ({unit})")
+            self.ax.set_ylabel(f"{variable} ({unit})" if unit else variable)
         else:
             self.ax.set_ylabel(self.ylabel)
 
-        self.ax.set_xlabel(self.x)
+        self.ax.set_xlabel(self._time_label(times))
         self.ax.legend()
         self.ax.set_title(self.title)
         import warnings
@@ -158,6 +149,19 @@ class TimeSeriesPlot(BasePlot):
             warnings.simplefilter("ignore", UserWarning)
             self.fig.tight_layout()
         return self.ax
+
+    def _spread_options(self):
+        return {"label": "Mean ± 1 standard deviation", **self.fillargs}
+
+    def _time_label(self, values):
+        timezone = getattr(values, "tz", None) or getattr(values, "attrs", {}).get(
+            "timezone"
+        )
+        if timezone:
+            return f"{self.x} ({timezone})"
+        if pd.api.types.is_datetime64_any_dtype(values):
+            return f"{self.x} (time zone unspecified)"
+        return self.x
 
     def _plot_xarray(self, **kwargs: Any) -> plt.Axes:
         """
@@ -202,6 +206,9 @@ class TimeSeriesPlot(BasePlot):
             mean_data = data[self.y]
             std_data = xr.zeros_like(mean_data)
 
+        if mean_data.chunks is not None or std_data.chunks is not None:
+            mean_data, std_data = compute(mean_data, std_data)
+
         plot_label = self.label if self.label is not None else self.y
         mean_data.dropna(self.x).plot(ax=self.ax, label=plot_label, **self.plotargs)
 
@@ -209,17 +216,20 @@ class TimeSeriesPlot(BasePlot):
         lower = mean_data - std_data
 
         self.ax.fill_between(
-            mean_data[self.x].values, lower.values, upper.values, **self.fillargs
+            mean_data[self.x].values,
+            lower.values,
+            upper.values,
+            **self._spread_options(),
         )
 
-        unit = data[self.y].attrs.get("units", "None")
+        unit = data[self.y].attrs.get("units")
 
         if self.ylabel is None:
-            self.ax.set_ylabel(f"{self.y} ({unit})")
+            self.ax.set_ylabel(f"{self.y} ({unit})" if unit else self.y)
         else:
             self.ax.set_ylabel(self.ylabel)
 
-        self.ax.set_xlabel(self.x)
+        self.ax.set_xlabel(self._time_label(mean_data[self.x]))
         self.ax.legend()
         self.ax.set_title(self.title)
         import warnings
@@ -415,20 +425,38 @@ class TimeSeriesStatsPlot(BasePlot):
         --------
         >>> plot._plot_xarray(compute_bias, 'D', 'bias', {'color': 'red'})
         """
-        for model_col in self.var2:
-
-            def resample_func(ds):
-                # Dim is None means reduce over all dimensions in the group
-                # which is correct for a time series plot of a bulk statistic.
-                return metric_func(ds[self.col1], ds[model_col])
-
-            # Resample and calculate using .map() to maintain laziness
+        observations = self.data[self.col1]
+        # These metrics are means of pointwise errors. One grouped reduction
+        # preserves each bin's sample weighting without a graph per time bin.
+        if stat_name in {"bias", "mae", "rmse"} and all(
+            self.data[model].dims == observations.dims for model in self.var2
+        ):
+            summaries = []
+            for model in self.var2:
+                error = self.data[model] - observations
+                if stat_name == "mae":
+                    error = abs(error)
+                elif stat_name == "rmse":
+                    error = error**2
+                series = error.resample({self.x: freq}).mean(dim=list(error.dims))
+                summaries.append(series**0.5 if stat_name == "rmse" else series)
+        else:
             resampled = self.data.resample({self.x: freq})
-            stat_series = resampled.map(resample_func)
+            for model_col in self.var2:
 
-            # Extract label if present or use col name
-            label = model_col
-            stat_series.plot(ax=self.ax, label=label, **plot_kwargs)
+                def resample_func(ds, model=model_col):
+                    return metric_func(ds[self.col1], ds[model])
+
+                series = resampled.map(resample_func)
+                series.plot(ax=self.ax, label=model_col, **plot_kwargs)
+            return
+
+        if any(series.chunks is not None for series in summaries):
+            summaries = (
+                compute(*summaries) if len(summaries) > 1 else (compute(summaries[0]),)
+            )
+        for model_col, series in zip(self.var2, summaries, strict=True):
+            series.plot(ax=self.ax, label=model_col, **plot_kwargs)
 
     def _plot_dataframe(
         self, metric_func: Any, freq: str, stat_name: str, plot_kwargs: dict
@@ -466,7 +494,13 @@ class TimeSeriesStatsPlot(BasePlot):
                 return metric_func(group[self.col1].values, group[model_col].values)
 
             stat_series = df.resample(freq).apply(pandas_metric)
-            stat_series.plot(ax=self.ax, label=model_col, **plot_kwargs)
+            self.ax.plot(
+                stat_series.index,
+                stat_series.to_numpy(),
+                label=model_col,
+                **plot_kwargs,
+            )
+        set_concise_time_axis(self.ax, df.index.tz)
 
 
 class TimeSeriesErrorBarPlot(BasePlot):
@@ -668,6 +702,7 @@ class TimeSeriesErrorBarPlot(BasePlot):
         else:
             ds = self.data
 
+        time_dims, summaries = [], []
         for col in self.y:
             da = ds[col]
             time_dim = self.x if self.x in da.dims else da.dims[0]
@@ -685,6 +720,14 @@ class TimeSeriesErrorBarPlot(BasePlot):
                     else xr.zeros_like(da)
                 )
 
+            time_dims.append(time_dim)
+            summaries.extend((mean_da, err_da))
+
+        if any(series.chunks is not None for series in summaries):
+            summaries = compute(*summaries)
+        for col, time_dim, mean_da, err_da in zip(
+            self.y, time_dims, summaries[::2], summaries[1::2], strict=True
+        ):
             times = mean_da[time_dim].values
             means = mean_da.values
             errs = err_da.values

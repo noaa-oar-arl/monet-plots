@@ -3,16 +3,63 @@
 
 from __future__ import annotations
 
+import re
+from functools import wraps
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
+from matplotlib import cbook
+from matplotlib.backends.backend_agg import RendererAgg
 
-from ..style import set_style
+from ..style import FIGURE_STYLES, set_style
 
 if TYPE_CHECKING:
     import matplotlib.axes
     import matplotlib.cm
     import matplotlib.colorbar
+
+
+def figure_style(method):
+    """Apply opt-in settings while drawing or exporting one figure."""
+
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if self._figure_style is None:
+            return method(self, *args, **kwargs)
+        with plt.rc_context(self._figure_style):
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def _wrap_title(title, width, renderer):
+    """Wrap at word boundaries using the title's rendered font metrics."""
+    font = title.get_fontproperties()
+    wrapped = []
+    for line in title.get_text().split("\n"):
+
+        def measure(text):
+            math = (
+                "TeX"
+                if title.get_usetex()
+                else (title.get_parse_math() and cbook.is_math_text(text))
+            )
+            return renderer.get_text_width_height_descent(text, font, ismath=math)[0]
+
+        if measure(line) <= width:
+            wrapped.append(line)
+            continue
+        current = ""
+        tokens = re.findall(r"(?:\$[^$]+\$|[^\s])+", line)
+        for token in tokens:
+            candidate = f"{current} {token}" if current else token
+            if current and measure(candidate) > width:
+                wrapped.append(current)
+                current = token
+            else:
+                current = candidate
+        wrapped.append(current)
+    return "\n".join(wrapped)
 
 
 class BasePlot:
@@ -35,7 +82,8 @@ class BasePlot:
                 If None, no style is applied. Defaults to 'wiley'.
             **kwargs: Additional keyword arguments for `plt.subplots`.
         """
-        if style:
+        self._figure_style = FIGURE_STYLES.get(style)
+        if style and self._figure_style is None:
             set_style(style)
 
         if ax is not None:
@@ -48,16 +96,88 @@ class BasePlot:
             self.fig = fig
             self.ax = None
         else:
-            self.fig, self.ax = plt.subplots(**kwargs)
+            with plt.rc_context(self._figure_style):
+                self.fig, self.ax = plt.subplots(**kwargs)
 
+    @figure_style
     def save(self, filename, **kwargs):
-        """Saves the plot to a file.
+        """Save the plot and wrap panel titles to their axes widths.
 
         Args:
             filename (str): The name of the file to save the plot to.
             **kwargs: Additional keyword arguments for `savefig`.
         """
-        self.fig.savefig(filename, **kwargs)
+        titles = [
+            (ax, title, title.get_text())
+            for ax in self.fig.axes
+            for title in (ax._left_title, ax.title, ax._right_title)
+            if title.get_visible() and title.get_text()
+        ]
+        if not titles:
+            self.fig.savefig(filename, **kwargs)
+            return
+        # Resolve current layout and fixed-aspect axes before measuring.
+        self.fig.draw_without_rendering()
+        renderer = RendererAgg(1, 1, self.fig.dpi)
+        original_sizes = [title.get_fontsize() for _, title, _ in titles]
+        original_top = self.fig.subplotpars.top
+        positions = None
+        try:
+            for ax, title, original in titles:
+                wrapped = _wrap_title(title, ax.bbox.width * 0.98, renderer)
+                if wrapped != original:
+                    title.set_text(wrapped)
+            bounded_export = (
+                kwargs.get("bbox_inches", plt.rcParams["savefig.bbox"]) is None
+            )
+            if bounded_export and self.fig.get_layout_engine() is None:
+                height = self.fig.bbox.height
+                padding = renderer.points_to_pixels(2)
+                top_limit = self.fig.bbox.y1 - padding
+                excess = max(
+                    title.get_window_extent(renderer).y1 - top_limit
+                    for _, title, _ in titles
+                )
+                if excess > 0:
+                    positions = [
+                        (
+                            ax,
+                            ax.get_position(original=True).frozen(),
+                            ax.get_in_layout(),
+                        )
+                        for ax in self.fig.axes
+                    ]
+                    min_top = self.fig.subplotpars.bottom + 0.12
+                    self.fig.subplots_adjust(
+                        top=max(min_top, original_top - excess / height)
+                    )
+                    self.fig.draw_without_rendering()
+                    for ax, title, original in titles:
+                        title.set_text(original)
+                        title.set_text(
+                            _wrap_title(title, ax.bbox.width * 0.98, renderer)
+                        )
+                        while (
+                            title.get_window_extent(renderer).y1 > top_limit
+                            and title.get_fontsize() > 1
+                        ):
+                            title.set_fontsize(title.get_fontsize() * 0.85)
+                            title.set_text(original)
+                            title.set_text(
+                                _wrap_title(title, ax.bbox.width * 0.98, renderer)
+                            )
+            self.fig.savefig(filename, **kwargs)
+        finally:
+            if positions is not None:
+                self.fig.subplots_adjust(top=original_top)
+                for ax, position, in_layout in positions:
+                    ax.set_position(position)
+                    ax.set_in_layout(in_layout)
+            for (_, title, original), size in zip(titles, original_sizes, strict=True):
+                if title.get_text() != original:
+                    title.set_text(original)
+                if title.get_fontsize() != size:
+                    title.set_fontsize(size)
 
     def close(self):
         """Closes the plot figure."""

@@ -63,3 +63,102 @@ def test_spatial_bias_scatter_on_existing_ax():
     # 5. Assert that a scatter plot was actually created
     # A scatter plot adds a PathCollection to the axes
     assert len(ax.collections) > 0
+
+
+def test_bias_scale_respects_shared_limits_and_shows_zero():
+    data = pd.DataFrame(
+        {
+            "lat": [30, 31, 32, 33],
+            "lon": [-99, -98, -97, -96],
+            "obs": [0, 0, 0, 0],
+            "model": [-0.05, 0, 0.3, np.nan],
+        }
+    )
+    plot = SpatialBiasScatterPlot(
+        data, "obs", "model", vmin=-0.1, vmax=0.1, coastlines=False
+    )
+    try:
+        ax = plot.plot()
+        marker = ax.collections[0]
+        assert marker.norm.vmin == -0.1
+        assert marker.norm.vmax == 0.1
+        assert marker.get_sizes()[1] > 0
+    finally:
+        plot.close()
+
+
+def test_bias_scatter_preserves_nullable_numbers_and_missing_values():
+    data = pd.DataFrame(
+        {
+            "latitude": [30, 31, 32],
+            "longitude": [-99, -98, -97],
+            "obs": pd.Series([2.0, 2.0, 3.0], dtype="Float64"),
+            "model": pd.Series([3.0, pd.NA, 1.0], dtype="Float64"),
+        }
+    )
+    plot = SpatialBiasScatterPlot(data, "obs", "model", coastlines=False)
+    try:
+        ax = plot.plot()
+        np.testing.assert_allclose(ax.collections[0].get_array(), [1.0, -2.0])
+        np.testing.assert_allclose(ax.collections[1].get_offsets(), [[-98, 31]])
+    finally:
+        plot.close()
+
+
+def test_bias_scatter_aligns_rectilinear_grid_to_data_dimension_order():
+    import xarray as xr
+
+    values = np.arange(6).reshape(3, 2)
+    data = xr.Dataset(
+        {
+            "obs": (("lon", "lat"), np.zeros_like(values)),
+            "model": (("lon", "lat"), values),
+        },
+        coords={"lat": [30, 40], "lon": [-110, -100, -90]},
+    )
+    plot = SpatialBiasScatterPlot(data, "obs", "model", coastlines=False)
+    try:
+        ax = plot.plot()
+        np.testing.assert_allclose(ax.collections[0].get_array(), values.ravel())
+        np.testing.assert_allclose(
+            ax.collections[0].get_offsets(),
+            [[lon, lat] for lon in data.lon.values for lat in data.lat.values],
+        )
+    finally:
+        plot.close()
+
+
+def test_lazy_rectilinear_bias_computes_native_coordinates(monkeypatch):
+    import dask.array as da
+    import xarray as xr
+
+    values = np.array([[1, np.nan, -2], [0, 3, 2]], dtype=float)
+    data = xr.Dataset(
+        {
+            "obs": (("row", "col"), np.zeros_like(values)),
+            "model": (("row", "col"), values),
+        },
+        coords={"lat": ("row", [25.0, 40.0]), "lon": ("col", [-110.0, -100.0, -90.0])},
+    )
+    lazy = data.chunk({"row": 1, "col": 2})
+    assert isinstance(lazy.lat.data, da.Array)
+    original_compute = xr.Dataset.compute
+
+    def check_compute(dataset, *args, **kwargs):
+        if "diff" in dataset:
+            assert dataset["latitudes"].ndim == 1
+            assert dataset["longitudes"].ndim == 1
+        return original_compute(dataset, *args, **kwargs)
+
+    monkeypatch.setattr(xr.Dataset, "compute", check_compute)
+    plot = SpatialBiasScatterPlot(lazy, "obs", "model", coastlines=False)
+    try:
+        ax = plot.plot()
+        np.testing.assert_allclose(ax.collections[0].get_array(), [1, -2, 0, 3, 2])
+        np.testing.assert_allclose(
+            ax.collections[0].get_offsets(),
+            [[-110, 25], [-90, 25], [-110, 40], [-100, 40], [-90, 40]],
+        )
+        np.testing.assert_allclose(ax.collections[1].get_offsets(), [[-100, 25]])
+    finally:
+        plot.close()

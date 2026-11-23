@@ -17,7 +17,8 @@ import functools
 
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
+from matplotlib import cycler
+from matplotlib.ticker import MaxNLocator
 
 __version__ = "Time-stamp: <2012-02-17 20:59:35 ycopin>"
 __author__ = "Yannick Copin <yannick.copin@laposte.net>"
@@ -25,12 +26,12 @@ __author__ = "Yannick Copin <yannick.copin@laposte.net>"
 colors = ["#DA70D6", "#228B22", "#FA8072", "#FF1493"]
 
 
-def _sns_context(f):
-    """Decorator to apply seaborn color palette to a function."""
+def _sample_palette(f):
+    """Apply the Taylor diagram color cycle locally."""
 
     @functools.wraps(f)
     def inner(*args, **kwargs):
-        with sns.color_palette(colors):
+        with plt.rc_context({"axes.prop_cycle": cycler(color=colors)}):
             return f(*args, **kwargs)
 
     return inner
@@ -54,7 +55,7 @@ class TaylorDiagram:
     This provides a comprehensive view of how well a model pattern matches observations.
     """
 
-    @_sns_context
+    @_sample_palette
     def __init__(self, refstd, scale=1.5, fig=None, rect=111, label="_"):
         """Initialize the Taylor diagram.
 
@@ -64,7 +65,7 @@ class TaylorDiagram:
             The reference standard deviation (e.g., from observations or a reference model)
             that other models will be compared against.
         scale : float, default 1.5
-            The maximum standard deviation shown on the plot, as a multiple of refstd.
+            Initial radial limit as a multiple of refstd. The limit grows to fit samples.
             For example, if refstd=2 and scale=1.5, the maximum standard deviation
             displayed will be 3.0.
         fig : matplotlib.figure.Figure, optional
@@ -77,76 +78,48 @@ class TaylorDiagram:
             appear in the legend.
         """
 
-        import mpl_toolkits.axisartist.floating_axes as FA
-        import mpl_toolkits.axisartist.grid_finder as GF
-        from matplotlib.projections import PolarAxes
-
-        self.refstd = refstd  # Reference standard deviation
-
-        tr = PolarAxes.PolarTransform(apply_theta_transforms=False)
-
-        # Correlation labels
-        rlocs = np.concatenate((np.arange(10) / 10.0, [0.95, 0.99]))
-        tlocs = np.arccos(rlocs)  # Conversion to polar angles
-        gl1 = GF.FixedLocator(tlocs)  # Positions
-        tf1 = GF.DictFormatter(dict(list(zip(tlocs, list(map(str, rlocs))))))
-
-        # Standard deviation axis extent
+        if not np.isfinite(refstd) or refstd <= 0:
+            raise ValueError(
+                "Reference standard deviation must be finite and positive."
+            )
+        if not np.isfinite(scale) or scale <= 0:
+            raise ValueError("Scale must be finite and positive.")
+        self.refstd = refstd
         self.smin = 0
-        self.smax = scale * self.refstd
-        ghelper = FA.GridHelperCurveLinear(
-            tr,
-            extremes=(0, np.pi / 2, self.smin, self.smax),
-            grid_locator1=gl1,
-            tick_formatter1=tf1,
-        )  # 1st quadrant
-
-        if fig is None:
-            fig = plt.figure()
-
-        ax = FA.FloatingSubplot(fig, rect, grid_helper=ghelper)
-        fig.add_subplot(ax)
-
-        # Adjust axes
-        ax.axis["top"].set_axis_direction("bottom")  # "Angle axis"
-        ax.axis["top"].toggle(ticklabels=True, label=True)
-        ax.axis["top"].major_ticklabels.set_axis_direction("top")
-        ax.axis["top"].label.set_axis_direction("top")
-        ax.axis["top"].label.set_text("Correlation")
-
-        ax.axis["left"].set_axis_direction("bottom")  # "X axis"
-        ax.axis["left"].label.set_text("Standard deviation")
-
-        ax.axis["right"].set_axis_direction("top")  # "Y axis"
-        ax.axis["right"].toggle(ticklabels=True)
-        ax.axis["right"].major_ticklabels.set_axis_direction("left")
-
-        ax.axis["bottom"].set_visible(False)  # Useless
-
-        # Contours along standard deviations
-        ax.grid(False)
-
-        self._ax = ax  # Graphical axes
-        self.ax = ax.get_aux_axes(tr)  # Polar coordinates
-
-        # Add reference point and stddev contour
-        print("Reference std:", self.refstd)
-        (line,) = self.ax.plot(
-            [0], self.refstd, "r*", ls="", ms=14, label=label, zorder=10
+        self.smax = max(scale * refstd, refstd)
+        self._theta_max = np.pi / 2
+        self._contours = []
+        fig = plt.figure() if fig is None else fig
+        subplot = rect if isinstance(rect, tuple) else (rect,)
+        self.ax = self._ax = fig.add_subplot(*subplot, projection="polar")
+        self.ax.set_xlabel("Pearson correlation")
+        self.ax.set_title("Standard deviation")
+        self.ax.yaxis.set_major_locator(MaxNLocator(5))
+        self.ax.grid(False)
+        (reference,) = self.ax.plot(
+            [0], [refstd], "r*", ms=14, label=label, zorder=10, clip_on=False
         )
-        t = np.linspace(0, np.pi / 2)
-        r = np.zeros_like(t) + self.refstd
-        self.ax.plot(t, r, "k--", label="_")
+        (self._reference_arc,) = self.ax.plot([], [], "k--", label="_")
+        self.samplePoints = [reference]
+        self._update_domain()
 
-        # Collect sample points for latter use (e.g. legend)
-        self.samplePoints = [line]
+    def _update_domain(self):
+        correlations = np.array([0, 0.2, 0.4, 0.6, 0.8, 0.9, 0.95, 1])
+        if self._theta_max > np.pi / 2:
+            correlations = np.r_[-correlations[:0:-1], correlations]
+        self.ax.set_thetamin(0)
+        self.ax.set_thetamax(np.degrees(self._theta_max))
+        self.ax.set_xticks(np.arccos(correlations), [f"{r:g}" for r in correlations])
+        self.ax.set_ylim(self.smin, self.smax)
+        theta = np.linspace(0, self._theta_max, 180)
+        self._reference_arc.set_data(theta, np.full_like(theta, self.refstd))
 
     @property
     def samples(self):
         """Property to provide compatibility with tests expecting 'samples' attribute."""
         return self.samplePoints
 
-    @_sns_context
+    @_sample_palette
     def add_sample(self, stddev, corrcoef, *args, **kwargs):
         """Add a sample point to the Taylor diagram.
 
@@ -172,17 +145,47 @@ class TaylorDiagram:
         Points closer to the reference point indicate better agreement with
         the reference dataset.
         """
+        if not np.isfinite(stddev) or stddev < 0:
+            raise ValueError("Model standard deviation must be finite and nonnegative.")
+        if not np.isfinite(corrcoef) or abs(corrcoef) > 1 + 8 * np.finfo(float).eps:
+            raise ValueError("Pearson correlation must be finite and within [-1, 1].")
+        theta = np.arccos(np.clip(corrcoef, -1, 1))
+        if stddev >= self.smax or theta > self._theta_max:
+            if stddev >= self.smax:
+                self.smax = (
+                    stddev * 1.05 if stddev <= np.finfo(float).max / 1.05 else stddev
+                )
+            if theta > self._theta_max:
+                self._theta_max = np.pi
+            self._update_domain()
+            for index, (artist, levels, options, label_calls) in enumerate(
+                self._contours
+            ):
+                if any(
+                    args or kwargs.get("levels") is not None
+                    for args, kwargs in label_calls
+                ):
+                    levels = artist.levels
+                for label in artist.labelTexts:
+                    if label in self.ax.texts:
+                        label.remove()
+                artist.labelTexts.clear()
+                artist.remove()
+                replacement = self._draw_contours(levels, options)
+                for label_args, label_kwargs in label_calls:
+                    replacement.clabel(*label_args, **label_kwargs)
+                self._contours[index] = (replacement, levels, options, label_calls)
+
         # A single-point line is invisible without a marker; provide sensible defaults.
         kwargs.setdefault("marker", "o")
         kwargs.setdefault("ls", "")
-        (line,) = self.ax.plot(
-            np.arccos(corrcoef), stddev, *args, **kwargs
-        )  # (theta,radius)
+        kwargs.setdefault("clip_on", False)
+        (line,) = self.ax.plot(theta, stddev, *args, **kwargs)
         self.samplePoints.append(line)
 
         return line
 
-    @_sns_context
+    @_sample_palette
     def add_contours(self, levels=5, **kwargs):
         """Add constant RMS difference contours to the Taylor diagram.
 
@@ -207,15 +210,36 @@ class TaylorDiagram:
         of differences in standard deviation and correlation.
         """
 
-        rs, ts = np.meshgrid(
-            np.linspace(self.smin, self.smax), np.linspace(0, np.pi / 2)
-        )
-        # Compute centered RMS difference
-        rms = np.sqrt(self.refstd**2 + rs**2 - 2 * self.refstd * rs * np.cos(ts))
+        return self._add_managed_contours(levels, kwargs)
 
-        contours = self.ax.contour(ts, rs, rms, levels, **kwargs)
+    def _add_managed_contours(self, levels, options, label_options=None):
+        contours = self._draw_contours(levels, options)
+        label_calls = []
+        clabel = contours.clabel
 
+        @functools.wraps(clabel)
+        def remember_labels(*args, **kwargs):
+            count = len(contours.labelTexts)
+            labels = clabel(*args, **kwargs)
+            if kwargs.get("manual") is not None and kwargs["manual"] is not False:
+                kwargs["manual"] = [label.get_position() for label in labels[count:]]
+            label_calls.append((args, kwargs))
+            return labels
+
+        # Axes.clabel and pyplot.clabel both dispatch to the contour set's method.
+        contours.clabel = remember_labels
+        if label_options is not None:
+            self.ax.clabel(contours, **label_options)
+        self._contours.append((contours, levels, options, label_calls))
         return contours
+
+    def _draw_contours(self, levels, options):
+        rs, ts = np.meshgrid(
+            np.linspace(self.smin, self.smax, 100),
+            np.linspace(0, self._theta_max, 180),
+        )
+        rms = np.hypot(rs * np.cos(ts) - self.refstd, rs * np.sin(ts))
+        return self.ax.contour(ts, rs, rms, levels, **options)
 
 
 if __name__ == "__main__":
@@ -240,7 +264,7 @@ if __name__ == "__main__":
     dia = TaylorDiagram(refstd, fig=fig, rect=122, label="Reference")
     # colors_ = plt.matplotlib.cm.jet(np.linspace(0, 1, len(samples)))
     colors_ = [None] * len(samples)
-    with sns.color_palette(colors):
+    with plt.rc_context({"axes.prop_cycle": cycler(color=colors)}):
         ax1 = fig.add_subplot(1, 2, 1, xlabel="X", ylabel="Y")
         ax1.plot(x, data, "ko", label="Data")
         for i, m in enumerate([m1, m2, m3]):
